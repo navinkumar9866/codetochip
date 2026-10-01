@@ -1,0 +1,34 @@
+{
+  "name": "@codetochip/admin",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Staff admin (FireCMS): content, site settings, users.",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@codetochip/boards": "workspace:*",
+    "@codetochip/data": "workspace:*",
+    "@firecms/core": "^3.5.0",
+    "@firecms/firebase": "^3.5.0",
+    "@firecms/ui": "^3.5.0",
+    "firebase": "^12.19.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^6.30.6",
+    "react-router-dom": "^6.30.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.1"
+  }
+}

@@ -1,0 +1,17 @@
+# Local stack. The arduino-cli worker service is added in Phase 0.2.
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+  compiler-api:
+    build:
+      context: .
+      dockerfile: services/compiler/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379
+    ports:
+      - '3001:3001'
+    depends_on:
+      - redis

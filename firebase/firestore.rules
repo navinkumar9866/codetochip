@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// Roles come from the `role` custom claim on the ID token:
+// student (default) | teacher | editor | admin. Set with `pnpm set-role`.
+// Limits here mirror packages/data/src/schema.ts; firebase/test checks they agree.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function role() {
+      return request.auth.token.get('role', 'student');
+    }
+    function isEditor() {
+      return signedIn() && role() in ['editor', 'admin'];
+    }
+    function isAdmin() {
+      return signedIn() && role() == 'admin';
+    }
+
+    // Profile data only. Roles never live here, so users cannot promote themselves.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'photoURL', 'createdAt']);
+      allow delete: if isAdmin();
+    }
+
+    // Users' saved code. Owner-only, including for admins (student privacy).
+    match /projects/{projectId} {
+      function isOwner() {
+        return signedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      function validProject() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['ownerId', 'name', 'boardId', 'files', 'createdAt', 'updatedAt'])
+          && d.ownerId == request.auth.uid
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+          && d.boardId is string && d.boardId.size() <= 64
+          && d.files is list && d.files.size() >= 1 && d.files.size() <= 32
+          && d.createdAt is timestamp
+          && d.updatedAt == request.time;
+      }
+
+      // A missing doc may be read/deleted so clients get "not found" rather than
+      // "permission denied". Ids are random, so this reveals nothing.
+      allow get, delete: if signedIn() && (resource == null || isOwner());
+      allow list: if isOwner();
+      allow create: if signedIn() && validProject()
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner() && validProject()
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    // Public content, managed in the admin by editors. Drafts are hidden from everyone else,
+    // so client queries must filter on `published == true`.
+    match /examples/{id} {
+      allow read: if resource.data.published == true || isEditor();
+      allow write: if isEditor();
+    }
+    match /lessons/{id} {
+      allow read: if resource.data.published == true || isEditor();
+      allow write: if isEditor();
+    }
+    match /pages/{id} {
+      allow read: if resource.data.published == true || isEditor();
+      allow write: if isEditor();
+    }
+
+    // Site-wide settings (announcement banner, maintenance mode). Readable by all.
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

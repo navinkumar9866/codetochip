@@ -1,0 +1,40 @@
+{
+  "id": "aries-v3",
+  "name": "ARIES v3.0 (THEJAS32)",
+  "vendor": "C-DAC",
+  "arch": "rv32im",
+  "family": "vega-thejas32",
+  "toolchain": {
+    "kind": "arduino-cli",
+    "fqbn": "vega:riscv:aries_v3",
+    "core": "vega:riscv",
+    "coreVersion": "1.1.3",
+    "indexUrl": "https://gitlab.com/riscv-vega/vega-arduino/-/raw/main/package_vega_index.json"
+  },
+  "artifact": { "format": "bin" },
+  "usb": [{ "vendorId": "0x10C4", "productId": "0xEA60", "bridge": "cp210x" }],
+  "serial": { "baudRate": 115200 },
+  "flash": {
+    "protocol": "vega-xmodem",
+    "modes": [
+      {
+        "id": "ram",
+        "label": "Run from RAM (lost on power-off)",
+        "bootSel": "open",
+        "buildOptions": { "upload_method": "xmodemMethod" },
+        "maxImageBytes": 254976
+      },
+      {
+        "id": "persistent",
+        "label": "Save to flash",
+        "bootSel": "TBD",
+        "buildOptions": { "upload_method": "serialMethod" },
+        "maxImageBytes": 254976,
+        "helper": "flasher_arduino.bin"
+      }
+    ],
+    "reset": { "method": "TBD" }
+  },
+  "memory": { "ramBytes": 262144, "flashBytes": 2097152 },
+  "docsUrl": "https://vegaprocessors.in/ariesv3.php"
+}

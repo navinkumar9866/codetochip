@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "w3c-web-serial", "w3c-web-usb"]
+  },
+  "include": ["src", "test", "e2e", "vite.config.ts", "playwright.config.ts"]
+}

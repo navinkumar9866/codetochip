@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+@import '@firecms/ui/index.css' layer(base);
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@plugin "@tailwindcss/typography";
+
+@source "../index.html";
+@source "./**/*.{js,ts,jsx,tsx}";
+@source "../node_modules/@firecms/**/*.{js,ts,jsx,tsx}";
+
+:root {
+  --color-primary: #0284c7;
+  --color-secondary: #f43f5e;
+}
+
+body {
+  @apply flex min-h-screen w-full flex-col bg-surface-50 dark:bg-surface-900;
+}

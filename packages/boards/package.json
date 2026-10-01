@@ -1,0 +1,15 @@
+{
+  "name": "@codetochip/boards",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Board manifests (the only place board-specific facts may live) and their schema.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifests/*": "./manifests/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  }
+}

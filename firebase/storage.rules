@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// Media for content (lesson images, board photos). Public read, editor write.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isEditor() {
+      return request.auth != null
+        && request.auth.token.get('role', 'student') in ['editor', 'admin'];
+    }
+
+    match /media/{allPaths=**} {
+      allow read: if true;
+      allow write: if isEditor()
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isEditor();
+    }
+  }
+}

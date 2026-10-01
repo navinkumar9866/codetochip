@@ -1,0 +1,21 @@
+{
+  "name": "@codetochip/compiler",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Compile API, job queue and sandboxed toolchain workers.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15"
+  },
+  "dependencies": {
+    "@codetochip/boards": "workspace:*",
+    "fastify": "^5.12.5"
+  }
+}

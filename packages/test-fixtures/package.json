@@ -1,0 +1,20 @@
+{
+  "name": "@codetochip/test-fixtures",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Recorded bootloader transcripts, sample sketches and the mock serial device.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./transcripts/*": "./transcripts/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@codetochip/flasher": "workspace:*",
+    "@types/w3c-web-serial": "^1.0.8",
+    "@types/w3c-web-usb": "^1.0.14"
+  }
+}

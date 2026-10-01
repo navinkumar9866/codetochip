@@ -1,0 +1,27 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
+# Env and OS
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Firebase
+.firebase/
+*-debug.log
+firebase-export-*/
+
+# Compiled test sketches (contain LGPL core code; never commit)
+packages/test-fixtures/build/

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Type-checks @codetochip/flasher sources it imports, so needs the same libs.
+    "lib": ["ES2023", "DOM"],
+    "types": ["w3c-web-serial", "w3c-web-usb"]
+  },
+  "include": ["src", "test"]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "codetochip",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @codetochip/web --filter @codetochip/admin --filter @codetochip/compiler --filter @codetochip/firebase dev",
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rules": "pnpm --filter @codetochip/firebase test",
+    "test:e2e": "pnpm --filter @codetochip/web test:e2e",
+    "emulators": "pnpm --filter @codetochip/firebase dev",
+    "seed": "pnpm --filter @codetochip/firebase seed",
+    "set-role": "pnpm --filter @codetochip/firebase set-role",
+    "worker:build": "docker build --platform linux/amd64 -t codetochip/worker-arduino-vega services/compiler/workers/arduino-cli",
+    "fixtures:compile": "services/compiler/workers/arduino-cli/compile-fixtures.sh",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.2"
+  }
+}
