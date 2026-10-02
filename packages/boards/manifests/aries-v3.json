@@ -59,5 +59,16 @@
     "ramBytes": 262144,
     "flashBytes": 2097152
   },
-  "docsUrl": "https://vegaprocessors.in/ariesv3.php"
+  "docsUrl": "https://vegaprocessors.in/ariesv3.php",
+  "help": {
+    "setup": [
+      "Remove the BOOT SEL jumper (J12) so the board starts in its bootloader when you press RESET.",
+      "Connect the board with a USB cable that carries data (many cables only charge)."
+    ],
+    "troubleshooting": [
+      "If the upload waits forever, press the RESET button on the board.",
+      "If the board was running a program from flash, check that the BOOT SEL jumper (J12) is removed.",
+      "After a cancelled or failed upload, press RESET before trying again."
+    ]
+  }
 }

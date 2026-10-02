@@ -60,4 +60,25 @@ describe('sanitizeLog + parseDiagnostics on real compiler output', () => {
     expect(out.length).toBeLessThan(MAX_LOG_BYTES + 100);
     expect(out).toMatch(/truncated/);
   });
+
+  it('drops linker noise users can’t act on', () => {
+    const raw =
+      '/opt/arduino/data/x/ld: warning: /work/cache/sketches/A/s.ino.elf has a LOAD segment with RWX permissionsSketch uses 5424 bytes (0%)';
+    expect(sanitizeLog(raw, 's')).toBe('Sketch uses 5424 bytes (0%)');
+  });
+
+  it('stays fast on adversarial output (user code can shape compiler messages)', () => {
+    const nasty = [
+      'x'.repeat(200_000),
+      ' has a LOAD segment with RWX permissions'.repeat(5000),
+      '/work/'.repeat(30_000),
+      `${'ld: warning: '.repeat(5000)}x`,
+    ];
+    for (const raw of nasty) {
+      const started = performance.now();
+      sanitizeLog(raw, 's');
+      parseDiagnostics(raw);
+      expect(performance.now() - started).toBeLessThan(200);
+    }
+  });
 });

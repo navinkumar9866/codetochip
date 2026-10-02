@@ -110,7 +110,7 @@ describe('ChunkQueue and ByteStream', () => {
 describe('protocol registry', () => {
   it('finds registered protocols by the id a manifest names', () => {
     expect(getProtocol('nope')).toBeUndefined();
-    const fake: Protocol = { id: 'fake-test', flash: async () => {} };
+    const fake: Protocol = { id: 'fake-test', targets: ['ram'], flash: async () => {} };
     registerProtocol(fake);
     expect(getProtocol('fake-test')).toBe(fake);
   });

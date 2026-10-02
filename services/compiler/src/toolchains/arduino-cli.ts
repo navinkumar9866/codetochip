@@ -42,8 +42,10 @@ export TMPDIR=/work/tmp
 mkdir -p "/work/$1" /work/out /work/tmp
 cp -r /opt/arduino/core-cache /work/cache
 tar -x -C "/work/$1" || { echo "Could not read the sketch files." >&2; exit ${EXIT.badInput}; }
-timeout 50 arduino-cli compile --no-color --warnings default --fqbn "$2" --output-dir /work/out "/work/$1" >&2
+# Capture separately: the linker's stderr and arduino-cli's stdout interleave mid-line otherwise.
+timeout 50 arduino-cli compile --no-color --warnings default --fqbn "$2" --output-dir /work/out "/work/$1" >/work/cli.out 2>/work/cli.err
 code=$?
+cat /work/cli.err /work/cli.out >&2
 if [ $code -eq 0 ]; then base64 -w0 "/work/out/$1.ino.bin"; fi
 exit $code
 `;

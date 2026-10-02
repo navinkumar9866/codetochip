@@ -241,6 +241,22 @@ export interface ToolchainAdapter {
 
 ## Phase 3 — Desktop MVP web app
 
+### Phase 3 status (2026-10-02): built; Hardware Gate 3 partly done
+
+- **IDE:**
+  - CodeMirror C/C++ editor with several files and inline compile errors.
+  - Compile (with queue position), Upload (connect → compile if needed → flash, RESET prompt only when needed), and Download .bin.
+  - Serial monitor: baud rate, send, timestamps, autoscroll, clear, download. It records all the time, so a new program's first lines aren't lost.
+- **Board connection** runs in a dedicated **Web Worker** (`apps/web/src/device/`). The page asks for the port and the worker reopens it. Falls back to in-page if a browser lacks serial in workers.
+- **Accounts:**
+  - Guests autosave under an anonymous account.
+  - "Sign in to keep your work" upgrades to Google, copying projects if the Google account already exists.
+  - My projects: open, rename, delete.
+- **Content:** examples from the admin (Firestore) plus bundled offline ones. Help page built from manifest `help` and USB-chip advice. Compatibility banner.
+- **PWA:** installable; the app shell is cached offline.
+- **Tests:** Playwright e2e (desktop and Android viewport) covering example → compile → upload with RESET → serial output, compile errors inline, guest autosave, and 380 px with no sideways scroll. They run with the simulated board in CI.
+- **Real hardware:** the full IDE flow uploaded hello-serial to ARIES v3 through the worker on macOS + Chrome (2026-10-02).
+
 ### Features
 
 - Board picker (just ARIES v3 for now) and example browser (examples from the VEGA core).
@@ -262,7 +278,7 @@ export interface ToolchainAdapter {
 
 ### HARDWARE GATE 3
 
-- [ ] Full flow on Windows Chrome, Windows Edge, macOS Chrome, Ubuntu Chrome.
+- [ ] Full flow on Windows Chrome, Windows Edge, ~~macOS Chrome~~ (done 2026-10-02, Web Worker path), Ubuntu Chrome.
 - [ ] Beginner test: someone new goes from landing page to Blink in under 2 minutes.
 
 ---

@@ -14,6 +14,8 @@ const ENTER = new Uint8Array([0x0d]);
  */
 export const vegaXmodemProtocol: Protocol = {
   id: 'vega-xmodem',
+  // Persistent mode waits for the confirmed procedure (docs/PLAN.md open question 2).
+  targets: ['ram'],
   async flash(transport, image, opts, onProgress, signal) {
     if (opts.target === 'persistent') {
       throw new FlasherError(

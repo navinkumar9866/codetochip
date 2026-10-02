@@ -1,6 +1,9 @@
 import {
   GoogleAuthProvider,
+  linkWithPopup,
   onIdTokenChanged,
+  signInAnonymously,
+  signInWithCredential,
   signInWithPopup,
   signOut,
   type Auth,
@@ -11,26 +14,57 @@ import { COLLECTIONS, isRole } from '../schema.ts';
 import type { AppUser, AuthService } from '../services.ts';
 
 export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthService {
+  let cached: AppUser | null = null;
+  const refresh = async (user: User | null) => (cached = user ? await toAppUser(user) : null);
+  // Keep a synchronous copy for currentUser(); role comes from the ID token's claims.
+  onIdTokenChanged(auth, (user) => void refresh(user));
+
   return {
     onChange(cb) {
       // onIdTokenChanged (not onAuthStateChanged) so role changes arrive on token refresh.
       return onIdTokenChanged(auth, (user) => {
-        if (!user) return cb(null);
-        void toAppUser(user).then(cb);
+        void refresh(user).then(cb);
       });
     },
+    currentUser: () => cached,
+    async ensureUser() {
+      if (!auth.currentUser) await signInAnonymously(auth);
+      return (await refresh(auth.currentUser))!;
+    },
     async signInWithGoogle() {
-      const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+      const provider = new GoogleAuthProvider();
+      const current = auth.currentUser;
+      let user: User;
+      if (current?.isAnonymous) {
+        try {
+          user = (await linkWithPopup(current, provider)).user;
+        } catch (e) {
+          // The Google account already exists: sign into it instead.
+          const credential = GoogleAuthProvider.credentialFromError(e as never);
+          if ((e as { code?: string }).code !== 'auth/credential-already-in-use' || !credential) {
+            throw e;
+          }
+          user = (await signInWithCredential(auth, credential)).user;
+        }
+      } else {
+        user = (await signInWithPopup(auth, provider)).user;
+      }
       await upsertProfile(db, user);
+      await refresh(user);
     },
     async signOut() {
       await signOut(auth);
+      cached = null;
     },
   };
 }
 
 async function toAppUser(user: User): Promise<AppUser> {
-  const { claims } = await user.getIdTokenResult();
+  // Offline, the token may not refresh; keep working as a student rather than failing.
+  const claims = await user
+    .getIdTokenResult()
+    .then((r) => r.claims)
+    .catch(() => ({}) as Record<string, unknown>);
   return {
     uid: user.uid,
     displayName: user.displayName,

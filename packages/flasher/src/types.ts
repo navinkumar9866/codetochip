@@ -50,6 +50,8 @@ export interface FlashOptions {
 /** Speaks one bootloader. Never knows which transport it runs on. */
 export interface Protocol {
   readonly id: string;
+  /** Upload targets this protocol can do; the UI disables other flash modes. */
+  readonly targets: readonly FlashOptions['target'][];
   flash(
     transport: Transport,
     image: Uint8Array,

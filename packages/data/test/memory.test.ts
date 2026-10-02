@@ -4,6 +4,7 @@ import {
   InvalidProjectError,
   NotSignedInError,
   PROJECT_LIMITS,
+  signInWithGoogleKeepingWork,
   validateProjectInput,
   type AppUser,
   type ProjectInput,
@@ -74,5 +75,52 @@ describe('validateProjectInput', () => {
     ],
   ])('rejects %o', (input, message) => {
     expect(validateProjectInput(input)).toMatch(message);
+  });
+});
+
+describe('guests and Google sign-in', () => {
+  it('saves work as a guest, then keeps it when upgrading in place', async () => {
+    const s = createMemoryServices();
+    expect(s.auth.currentUser()).toBeNull();
+    const guest = await s.auth.ensureUser();
+    expect(guest.isAnonymous).toBe(true);
+    expect(await s.auth.ensureUser()).toBe(s.auth.currentUser());
+    await s.projects.create(blink);
+    expect(await signInWithGoogleKeepingWork(s)).toEqual({ copied: 0 });
+    expect(s.auth.currentUser()).toMatchObject({ uid: guest.uid, isAnonymous: false });
+    expect(await s.projects.listMine()).toHaveLength(1);
+  });
+
+  it('copies a guest’s projects into an existing Google account', async () => {
+    const s = createMemoryServices(null, { googleAccountExists: true });
+    await s.auth.ensureUser();
+    await s.projects.create(blink);
+    await s.projects.create({ ...blink, name: 'Second' });
+    expect(await signInWithGoogleKeepingWork(s)).toEqual({ copied: 2 });
+    expect(s.auth.currentUser()?.uid).toBe('memory-user');
+    expect((await s.projects.listMine()).map((p) => p.name).sort()).toEqual(['Blink', 'Second']);
+  });
+});
+
+describe('content', () => {
+  it('lists published examples for a board, in order', async () => {
+    const ex = (id: string, order: number, boardIds: string[], published = true) => ({
+      id,
+      title: id,
+      description: '',
+      boardIds,
+      files: [],
+      published,
+      order,
+    });
+    const s = createMemoryServices(null, {
+      examples: [
+        ex('b', 2, []),
+        ex('a', 1, ['aries-v3']),
+        ex('other', 0, ['esp32']),
+        ex('draft', 0, [], false),
+      ],
+    });
+    expect((await s.content.listExamples('aries-v3')).map((e) => e.id)).toEqual(['a', 'b']);
   });
 });

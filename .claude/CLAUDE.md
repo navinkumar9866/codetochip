@@ -35,7 +35,12 @@ docs/                PLAN.md, decisions (ADRs), hardware test matrix
 7. **Toolchains are adapters.** The compiler service calls a `ToolchainAdapter` chosen by the manifest (`arduino-cli` first; later PlatformIO, vendor SDKs, Zephyr). Each adapter has its own worker image.
 8. **Backend through `packages/data` only (ADR 0001).** Firebase (Auth, Firestore, Storage) holds accounts, saved projects and content. UI code uses the `AppServices` interfaces via `useServices()`; only an app's entry point picks the Firebase implementation (ESLint enforces this in `apps/web`). Roles are the `role` custom claim (`student | teacher | editor | admin`), never a Firestore field.
 9. **Security rules are code.** Every change to `firebase/*.rules` needs an emulator test in `firebase/test/`. Limits in the rules must match `PROJECT_LIMITS` in `packages/data`.
-10. **Ease is the product.** Every error shown to a user must say what to do next in plain language (e.g. "Board not detected — try a different USB cable; many are charge-only").
+10. **Board I/O runs in a Web Worker.** `apps/web/src/device/` holds the code. The page calls `requestPort()`/`requestDevice()` (they need a click); `device.worker.ts` reopens the port via `getPorts()`/`getDevices()` and runs a `DeviceSession`. Chrome throttles main-thread timers in background tabs. Upload must connect _before_ compiling, so the click still counts as a user gesture.
+11. **Dev-only switches** (stripped from production builds; keep it that way):
+    - `?services=memory` runs without Firebase.
+    - `?device=mock` uses the simulated VEGA bootloader.
+    - The `/spike/flash` "Save to repo" button.
+12. **Ease is the product.** Every error shown to a user must say what to do next in plain language (e.g. "Board not detected — try a different USB cable; many are charge-only").
 
 ## First board: ARIES v3 facts (from public sources; re-verify on hardware)
 

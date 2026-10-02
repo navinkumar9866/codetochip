@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const TRANSCRIPTS_DIR = fileURLToPath(
   new URL('../../packages/test-fixtures/transcripts/', import.meta.url),
@@ -44,7 +45,33 @@ function saveTranscripts(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), saveTranscripts()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    saveTranscripts(),
+    // Installable app; the app shell works offline (compiling needs the network; saved
+    // projects are available offline through Firestore's cache).
+    VitePWA({
+      registerType: 'autoUpdate',
+      manifest: {
+        name: 'CodeToChip',
+        short_name: 'CodeToChip',
+        description: 'Write code, flash any microcontroller, from any device.',
+        theme_color: '#0f172a',
+        background_color: '#020617',
+        display: 'standalone',
+        start_url: '/',
+        icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+      },
+    }),
+  ],
+  worker: { format: 'es' },
   server: {
     port: 5173,
     proxy: {

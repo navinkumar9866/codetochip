@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import type { AppUser } from '@codetochip/data';
+import { signInWithGoogleKeepingWork, type AppUser } from '@codetochip/data';
 import { useServices } from '../services.tsx';
 
 export function AccountBar({ user }: { user: AppUser | null | undefined }) {
-  const { auth } = useServices();
+  const services = useServices();
   const [error, setError] = useState<string | null>(null);
 
   if (user === undefined) return null;
@@ -11,7 +11,7 @@ export function AccountBar({ user }: { user: AppUser | null | undefined }) {
   const signIn = async () => {
     setError(null);
     try {
-      await auth.signInWithGoogle();
+      await signInWithGoogleKeepingWork(services);
     } catch {
       setError(
         'Sign-in didn’t finish. If a popup was blocked, allow popups for this site and try again.',
@@ -19,25 +19,33 @@ export function AccountBar({ user }: { user: AppUser | null | undefined }) {
     }
   };
 
+  const signedIn = user && !user.isAnonymous;
   return (
-    <div className="text-right text-sm">
-      {user ? (
+    <div className="flex items-center gap-3 text-sm">
+      {signedIn ? (
         <>
-          <div className="text-slate-300">{user.displayName ?? user.email}</div>
-          <button className="text-slate-400 underline" onClick={() => void auth.signOut()}>
+          <span className="text-slate-300">{user.displayName ?? user.email}</span>
+          <button className="text-slate-400 underline" onClick={() => void services.auth.signOut()}>
             Sign out
           </button>
         </>
       ) : (
-        <button
-          className="rounded-md bg-sky-600 px-3 py-1.5 font-medium text-white"
-          onClick={() => void signIn()}
-        >
-          Sign in with Google
-        </button>
+        <>
+          {user?.isAnonymous && (
+            <span className="hidden text-slate-400 sm:inline">
+              Guest · work saved on this device
+            </span>
+          )}
+          <button
+            className="rounded-md bg-sky-600 px-3 py-1.5 font-medium text-white"
+            onClick={() => void signIn()}
+          >
+            {user?.isAnonymous ? 'Sign in to keep your work' : 'Sign in with Google'}
+          </button>
+        </>
       )}
       {error && (
-        <p role="alert" className="mt-2 max-w-60 text-red-400">
+        <p role="alert" className="max-w-60 text-red-400">
           {error}
         </p>
       )}

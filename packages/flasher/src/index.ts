@@ -10,6 +10,7 @@ export {
 export { vegaXmodemProtocol } from './protocols/vega-xmodem.ts';
 export { getProtocol, registerProtocol } from './protocols/registry.ts';
 export { applyReset } from './reset.ts';
+export { DeviceSession, type SessionEvents, type SessionState } from './session.ts';
 export { ByteStream } from './io/byte-stream.ts';
 export { ChunkQueue } from './io/chunk-queue.ts';
 export { WebSerialTransport } from './transports/web-serial.ts';

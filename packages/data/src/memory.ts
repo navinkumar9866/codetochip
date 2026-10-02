@@ -1,4 +1,4 @@
-import { validateProjectInput, type Project, type ProjectInput } from './schema.ts';
+import { validateProjectInput, type Example, type Project, type ProjectInput } from './schema.ts';
 import {
   InvalidProjectError,
   NotSignedInError,
@@ -8,11 +8,22 @@ import {
   type ProjectRepository,
 } from './services.ts';
 
+export interface MemoryServiceOptions {
+  /** Published examples returned by content.listExamples. */
+  examples?: (Example & { id: string })[];
+  /** Simulate Google sign-in landing in an existing account (the guest's uid changes). */
+  googleAccountExists?: boolean;
+}
+
 /** In-memory services for tests, Storybook-style previews and offline demos. */
-export function createMemoryServices(initialUser: AppUser | null = null): AppServices & {
+export function createMemoryServices(
+  initialUser: AppUser | null = null,
+  options: MemoryServiceOptions = {},
+): AppServices & {
   setUser(user: AppUser | null): void;
 } {
   let user = initialUser;
+  let guests = 0;
   const listeners = new Set<(u: AppUser | null) => void>();
   const setUser = (u: AppUser | null) => {
     user = u;
@@ -25,9 +36,24 @@ export function createMemoryServices(initialUser: AppUser | null = null): AppSer
       cb(user);
       return () => listeners.delete(cb);
     },
+    currentUser: () => user,
+    async ensureUser() {
+      if (!user) {
+        setUser({
+          uid: `guest-${++guests}`,
+          displayName: null,
+          email: null,
+          photoURL: null,
+          role: 'student',
+          isAnonymous: true,
+        });
+      }
+      return user!;
+    },
     async signInWithGoogle() {
+      const keepUid = user?.isAnonymous && !options.googleAccountExists;
       setUser({
-        uid: 'memory-user',
+        uid: keepUid ? user!.uid : 'memory-user',
         displayName: 'Test User',
         email: 'test@example.com',
         photoURL: null,
@@ -40,7 +66,20 @@ export function createMemoryServices(initialUser: AppUser | null = null): AppSer
     },
   };
 
-  return { auth, projects: createMemoryProjectRepository(() => user?.uid ?? null), setUser };
+  const content = {
+    async listExamples(boardId: string) {
+      return (options.examples ?? [])
+        .filter((e) => e.published && (e.boardIds.length === 0 || e.boardIds.includes(boardId)))
+        .sort((a, b) => a.order - b.order);
+    },
+  };
+
+  return {
+    auth,
+    projects: createMemoryProjectRepository(() => user?.uid ?? null),
+    content,
+    setUser,
+  };
 }
 
 export function createMemoryProjectRepository(getUid: () => string | null): ProjectRepository {

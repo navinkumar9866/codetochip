@@ -51,4 +51,6 @@ export interface BoardManifest {
   memory: { ramBytes: number; flashBytes?: number };
   docsUrl: string;
   photos?: string[];
+  /** Board-specific guidance shown in the app. */
+  help?: { setup?: string[]; troubleshooting?: string[] };
 }
