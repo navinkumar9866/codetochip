@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codetochip.dev/schema/board-manifest.json",
+  "title": "CodeToChip board manifest",
+  "description": "Everything board-specific lives here (CLAUDE.md rule 2). Keep in sync with src/types.ts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "vendor",
+    "arch",
+    "family",
+    "toolchain",
+    "artifact",
+    "usb",
+    "serial",
+    "flash",
+    "memory",
+    "docsUrl"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "vendor": { "type": "string", "minLength": 1 },
+    "arch": { "type": "string", "minLength": 1 },
+    "family": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "testOnly": {
+      "type": "boolean",
+      "description": "Hidden from users; exists to prove nothing is hard-wired to one board."
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "fqbn", "core", "coreVersion", "indexUrl"],
+      "properties": {
+        "kind": { "enum": ["arduino-cli", "platformio", "vendor-sdk", "zephyr", "none"] },
+        "fqbn": { "type": "string", "pattern": "^[^:\\s]+:[^:\\s]+:[^:\\s]+$" },
+        "core": { "type": "string" },
+        "coreVersion": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "indexUrl": { "type": "string", "pattern": "^https://" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format"],
+      "properties": { "format": { "enum": ["bin", "hex", "uf2", "elf"] } }
+    },
+    "usb": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vendorId", "productId", "bridge"],
+        "properties": {
+          "vendorId": { "type": "string", "pattern": "^0x[0-9A-F]{4}$" },
+          "productId": { "type": "string", "pattern": "^0x[0-9A-F]{4}$" },
+          "bridge": { "enum": ["cp210x", "ch34x", "ftdi", "cdc-acm", "native"] }
+        }
+      }
+    },
+    "serial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baudRate"],
+      "properties": { "baudRate": { "type": "integer", "minimum": 300 } }
+    },
+    "flash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "modes", "reset"],
+      "properties": {
+        "protocol": { "type": "string", "minLength": 1 },
+        "modes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "target"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+              "label": { "type": "string", "minLength": 1 },
+              "target": { "enum": ["ram", "persistent"] },
+              "bootSel": { "type": "string" },
+              "buildOptions": { "type": "object", "additionalProperties": { "type": "string" } },
+              "maxImageBytes": { "type": "integer", "minimum": 1 },
+              "helper": { "type": "string" }
+            }
+          }
+        },
+        "reset": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["method", "prompt"],
+              "properties": {
+                "method": { "const": "manual" },
+                "prompt": { "type": "string", "minLength": 1 }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["method", "sequence"],
+              "properties": {
+                "method": { "const": "dtr-rts" },
+                "sequence": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["delayMs"],
+                    "properties": {
+                      "dtr": { "type": "boolean" },
+                      "rts": { "type": "boolean" },
+                      "delayMs": { "type": "integer", "minimum": 0 }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "afterCancel": {
+          "enum": ["reset-required", "ready"],
+          "description": "Whether the bootloader needs a reset after a cancelled upload."
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ramBytes"],
+      "properties": {
+        "ramBytes": { "type": "integer", "minimum": 1 },
+        "flashBytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "docsUrl": { "type": "string", "pattern": "^https?://" },
+    "photos": { "type": "array", "items": { "type": "string" } }
+  }
+}

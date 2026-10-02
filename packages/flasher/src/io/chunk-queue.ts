@@ -12,6 +12,13 @@ const DONE: IteratorResult<Uint8Array, undefined> = { done: true, value: undefin
  */
 export class ChunkQueue {
   private chunks: Uint8Array[] = [];
+  private buffered = 0;
+  /** Bytes dropped because nobody was reading and the buffer was full. */
+  dropped = 0;
+
+  /** With no reader attached, keep at most this many bytes (oldest are dropped first). */
+  constructor(private readonly maxBufferedBytes = 1 << 20) {}
+
   private waiter: Waiter | null = null;
   private closed = false;
   private failure: unknown = null;
@@ -24,6 +31,12 @@ export class ChunkQueue {
       w.resolve({ done: false, value: chunk });
     } else {
       this.chunks.push(chunk);
+      this.buffered += chunk.length;
+      while (this.buffered > this.maxBufferedBytes && this.chunks.length > 1) {
+        const old = this.chunks.shift()!;
+        this.buffered -= old.length;
+        this.dropped += old.length;
+      }
     }
   }
 
@@ -48,7 +61,10 @@ export class ChunkQueue {
           next: () => {
             if (detached) return Promise.resolve(DONE);
             const chunk = this.chunks.shift();
-            if (chunk) return Promise.resolve({ done: false, value: chunk });
+            if (chunk) {
+              this.buffered -= chunk.length;
+              return Promise.resolve({ done: false, value: chunk });
+            }
             if (this.closed) {
               return this.failure ? Promise.reject(this.failure) : Promise.resolve(DONE);
             }

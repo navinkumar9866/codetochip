@@ -89,9 +89,37 @@ Navin tests and reports:
 
 **Exit:** all three spikes work, or we have written up what blocks them and decided a fallback.
 
+**Gate 0 exit decision (Navin, 2026-10-02):** desktop flashing to RAM is proven on real hardware, so we move on to Phase 1. Deferred, not dropped:
+
+- **Android over WebUSB:** to be tested at Hardware Gate 4. The code (`WebUsbSerialTransport` + `Cp210xDriver`) is built and unit-tested.
+- **Persistent (flash) mode:** blocked on the C-DAC procedure (open question 2). Phase 1 rejects it with a clear message instead of guessing.
+
 ---
 
 ## Phase 1 — `packages/flasher` done properly
+
+### Phase 1 status (2026-10-02): done, except persistent mode (blocked on open question 2)
+
+- **1.1 Interfaces.** `FlashOptions` is built from the manifest by `flashOptionsFor()`: `target`, `reset`, `maxImageBytes`, `afterCancel`.
+- **1.2 Mocks in `packages/test-fixtures`.**
+  - `createReplayDevice` replays the Gate 0 recordings byte for byte. Golden tests prove our host writes match the real sessions.
+  - `createMockVegaBootloader` uses the real banner chunks and real behaviour, and covers the scenarios: NAK, no answer, cancel, unplug, checksum mode, stray CAN, EOT NAK.
+- **1.3 `vegaXmodemProtocol`.**
+  - Reset strategy comes from the manifest. "Press RESET" is shown only if the board isn't already waiting.
+  - Persistent mode is refused with a clear message. The size limit is checked before touching the board.
+  - After a cancel, the message tells the user to press RESET.
+- **1.4 Transports.** WebUSB reacts to `disconnect` events at once. The receive buffer is capped at 1 MiB.
+- **1.5 Registry.**
+  - JSON Schema, validated in CI.
+  - Hidden `test-board` (protocol `mock-echo`) proves nothing is wired to ARIES.
+  - Family grouping, search that ignores punctuation, and USB-ID lookup.
+- **Coverage gate in CI:** 100% of `packages/flasher/src/protocols/**`, ≥95% of lines in the rest of the flasher.
+
+**Finding: Chrome throttles timers in background tabs.** At Gate 0 the handshake took ~1.1 s because our 50 ms "silence" timer fired on ~1 s boundaries.
+
+- Fixed for the handshake: a `C` that repeats an earlier one ≥100 ms later is accepted immediately, with no timer involved. Covered by a test.
+- ACK timeouts (3 s) still rely on timers. Chrome's _intensive_ throttling (pages hidden >5 min) could make a long upload in a hidden tab fail.
+- **Run the flasher in a dedicated Web Worker in Phase 3**: Web Serial and WebUSB are available there, and workers aren't throttled the same way. Verify at Gate 3/4.
 
 ### 1.1 Interfaces
 
@@ -217,6 +245,7 @@ export interface ToolchainAdapter {
 ### Testing
 
 - Playwright e2e with `MockTransport` injected (feature flag), covering: open example → compile → flash → serial output shows.
+- Run `packages/flasher` in a dedicated Web Worker (see the Phase 1 throttling finding), and test an upload with the tab in the background.
 
 ### HARDWARE GATE 3
 

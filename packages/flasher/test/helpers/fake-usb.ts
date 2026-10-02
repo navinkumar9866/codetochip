@@ -1,5 +1,14 @@
 /** Minimal USBDevice stand-in for a CP210x: records control transfers, scripts bulk IN data. */
-export function createFakeUsbDevice() {
+export function createFakeUsbDevice(
+  opts: {
+    controlStatus?: USBTransferStatus;
+    outStatus?: USBTransferStatus;
+    stallFirstIn?: boolean;
+    noBulk?: boolean;
+  } = {},
+) {
+  let stallNext = opts.stallFirstIn ?? false;
+  let halts = 0;
   const controls: { setup: USBControlTransferParameters; data?: number[] }[] = [];
   const bulkOut: number[][] = [];
   const inbox: Uint8Array[] = [];
@@ -8,10 +17,12 @@ export function createFakeUsbDevice() {
   const claimed = new Set<number>();
 
   const alt = {
-    endpoints: [
-      { endpointNumber: 1, direction: 'in', type: 'bulk', packetSize: 64 },
-      { endpointNumber: 1, direction: 'out', type: 'bulk', packetSize: 64 },
-    ],
+    endpoints: opts.noBulk
+      ? []
+      : [
+          { endpointNumber: 1, direction: 'in', type: 'bulk', packetSize: 64 },
+          { endpointNumber: 1, direction: 'out', type: 'bulk', packetSize: 64 },
+        ],
   };
   const configuration = {
     configurationValue: 1,
@@ -39,14 +50,18 @@ export function createFakeUsbDevice() {
     async controlTransferOut(setup: USBControlTransferParameters, data?: BufferSource) {
       const bytes = data ? [...new Uint8Array(data as ArrayBuffer)] : undefined;
       controls.push(bytes ? { setup, data: bytes } : { setup });
-      return { status: 'ok', bytesWritten: bytes?.length ?? 0 };
+      return { status: opts.controlStatus ?? 'ok', bytesWritten: bytes?.length ?? 0 };
     },
     async transferOut(_ep: number, data: BufferSource) {
       if (unplugged) throw new DOMException('Device unavailable', 'NotFoundError');
       bulkOut.push([...new Uint8Array(data as ArrayBuffer)]);
-      return { status: 'ok', bytesWritten: (data as ArrayBuffer).byteLength };
+      return { status: opts.outStatus ?? 'ok', bytesWritten: (data as ArrayBuffer).byteLength };
     },
     async transferIn() {
+      if (stallNext) {
+        stallNext = false;
+        return { status: 'stall' };
+      }
       while (!inbox.length) {
         if (unplugged) throw new DOMException('Device unavailable', 'NetworkError');
         await new Promise<void>((r) => (wake = r));
@@ -54,7 +69,9 @@ export function createFakeUsbDevice() {
       const chunk = inbox.shift()!;
       return { status: 'ok', data: new DataView(chunk.buffer) };
     },
-    async clearHalt() {},
+    async clearHalt() {
+      halts++;
+    },
   };
 
   return {
@@ -62,6 +79,7 @@ export function createFakeUsbDevice() {
     controls,
     bulkOut,
     claimed,
+    halts: () => halts,
     receive(bytes: number[] | string) {
       inbox.push(
         typeof bytes === 'string' ? new TextEncoder().encode(bytes) : Uint8Array.from(bytes),

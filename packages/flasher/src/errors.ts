@@ -16,8 +16,7 @@ export class ProtocolError extends FlasherError {
 
 export class CancelledError extends FlasherError {
   override name = 'CancelledError';
-  constructor() {
-    // Gate 0: after CAN CAN the VEGA ROM bootloader goes silent until reset.
-    super('Upload cancelled. Press RESET on the board before uploading again.');
+  constructor(message = 'Upload cancelled.') {
+    super(message);
   }
 }

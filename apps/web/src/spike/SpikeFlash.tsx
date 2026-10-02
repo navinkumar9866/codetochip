@@ -2,21 +2,19 @@
 // over XMODEM, and record transcripts for packages/test-fixtures. Throwaway UI; the flasher
 // code it drives is the real thing. Everything board-specific comes from the manifest.
 import { useEffect, useRef, useState } from 'react';
-import { boards, type BoardManifest } from '@codetochip/boards';
+import { boards, flashOptionsFor, type BoardManifest } from '@codetochip/boards';
 import {
   createBridgeDriver,
   createRecorder,
   detectTransport,
-  vegaXmodemProtocol,
+  getProtocol,
   WebSerialTransport,
   WebUsbSerialTransport,
   type Cp210xDriver,
   type FlashProgress,
-  type Protocol,
   type Transport,
 } from '@codetochip/flasher';
 
-const protocols: Record<string, Protocol> = { [vegaXmodemProtocol.id]: vegaXmodemProtocol };
 const MAX_LINES = 1500;
 
 type Recorder = ReturnType<typeof createRecorder>;
@@ -202,7 +200,7 @@ export default function SpikeFlash() {
 
   const upload = async () => {
     const t = rec.current?.transport;
-    const protocol = protocols[board.flash.protocol];
+    const protocol = getProtocol(board.flash.protocol);
     if (!t || !image || !protocol) return;
     abort.current = new AbortController();
     await stopMonitor();
@@ -212,7 +210,7 @@ export default function SpikeFlash() {
       await protocol.flash(
         t,
         image.bytes,
-        { mode: modeId, handshakeTimeoutMs: 60_000 },
+        { ...flashOptionsFor(board, modeId), handshakeTimeoutMs: 60_000 },
         (p) => {
           setProgress(p);
           if (p.stage !== 'transferring')

@@ -35,11 +35,6 @@ export class ByteStream {
     return this.readByte(timeoutMs, signal);
   }
 
-  /** Discards bytes already received but not yet read. */
-  discardBuffered(): void {
-    this.offset = this.chunk.length;
-  }
-
   async close(): Promise<void> {
     await this.iterator.return?.();
   }

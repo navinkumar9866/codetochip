@@ -94,4 +94,24 @@ describe('Cp210xDriver + WebUsbSerialTransport', () => {
     ]);
     expect(usb.claimed.size).toBe(0);
   });
+
+  it('ends reads as soon as the browser reports this device unplugged', async () => {
+    const usbEvents = new EventTarget();
+    const usb = createFakeUsbDevice();
+    const transport = new WebUsbSerialTransport(
+      usb.device,
+      new Cp210xDriver(usb.device),
+      'webusb-cp210x',
+      usbEvents,
+    );
+    await transport.open({ baudRate: 115200 });
+    const stream = new ByteStream(transport.readable);
+    const pending = stream.readByte(5000);
+
+    const other = Object.assign(new Event('disconnect'), { device: {} });
+    usbEvents.dispatchEvent(other); // a different device: ignored
+    usbEvents.dispatchEvent(Object.assign(new Event('disconnect'), { device: usb.device }));
+    await expect(pending).rejects.toBeInstanceOf(DisconnectedError);
+    await expect(transport.write(Uint8Array.from([1]))).rejects.toBeInstanceOf(DisconnectedError);
+  });
 });

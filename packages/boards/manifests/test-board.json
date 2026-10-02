@@ -1,0 +1,57 @@
+{
+  "id": "test-board",
+  "name": "Test Board (mock)",
+  "vendor": "CodeToChip",
+  "arch": "mock",
+  "family": "test",
+  "testOnly": true,
+  "toolchain": {
+    "kind": "none",
+    "fqbn": "test:mock:board",
+    "core": "test:mock",
+    "coreVersion": "0.0.0",
+    "indexUrl": "https://example.invalid/package_test_index.json"
+  },
+  "artifact": {
+    "format": "bin"
+  },
+  "usb": [
+    {
+      "vendorId": "0x1209",
+      "productId": "0x0001",
+      "bridge": "cdc-acm"
+    }
+  ],
+  "serial": {
+    "baudRate": 9600
+  },
+  "flash": {
+    "protocol": "mock-echo",
+    "modes": [
+      {
+        "id": "ram",
+        "label": "Load (mock)",
+        "target": "ram",
+        "maxImageBytes": 1024
+      }
+    ],
+    "reset": {
+      "method": "dtr-rts",
+      "sequence": [
+        {
+          "dtr": false,
+          "delayMs": 50
+        },
+        {
+          "dtr": true,
+          "delayMs": 0
+        }
+      ]
+    },
+    "afterCancel": "ready"
+  },
+  "memory": {
+    "ramBytes": 1024
+  },
+  "docsUrl": "https://example.invalid/test-board"
+}

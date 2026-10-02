@@ -23,11 +23,23 @@ export interface XmodemOptions {
    * Boot banners contain capital C's ("C-DAC", "CPU"); the real request is a lone C.
    */
   quietMs?: number;
+  /**
+   * A handshake byte that repeats one received at least this long ago is accepted at once.
+   * Receivers repeat their request (VEGA: every 190 ms), and this needs no timer, so it still
+   * works when Chrome throttles timers in a background tab (seen at Gate 0).
+   */
+  repeatGapMs?: number;
   ackTimeoutMs?: number;
   /** Retries per block (and for EOT) before giving up. */
   maxRetries?: number;
   /** Sent after EOT is acknowledged (VEGA needs "\r" to start the program). */
   afterEot?: Uint8Array;
+  /**
+   * Called once if no handshake arrives within `stillWaitingAfterMs`, e.g. to ask the user to
+   * press RESET only when the board isn't already waiting (it sends a C every 190 ms if it is).
+   */
+  onStillWaiting?: () => void;
+  stillWaitingAfterMs?: number;
   onHandshake?: (mode: XmodemMode) => void;
   onProgress?: (bytesSent: number, totalBytes: number) => void;
 }
@@ -41,9 +53,12 @@ export async function xmodemSend(
   const {
     handshakeTimeoutMs = 60_000,
     quietMs = 50,
+    repeatGapMs = 100,
     ackTimeoutMs = 3_000,
     maxRetries = 10,
     afterEot,
+    onStillWaiting,
+    stillWaitingAfterMs = 600,
     onHandshake,
     onProgress,
   } = options;
@@ -68,6 +83,7 @@ export async function xmodemSend(
 
   const sendWithRetries = async (packet: Uint8Array, what: string) => {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      signal?.throwIfAborted();
       await transport.write(packet);
       if ((await awaitReply()) === ACK) return;
     }
@@ -78,7 +94,16 @@ export async function xmodemSend(
   };
 
   try {
-    const mode = await waitForHandshake(stream, handshakeTimeoutMs, quietMs, signal);
+    // Bytes buffered before we started (an old banner or C) must not count as a handshake.
+    while ((await stream.readByte(0, signal)) !== null);
+    const mode = await waitForHandshake(stream, {
+      timeoutMs: handshakeTimeoutMs,
+      quietMs,
+      repeatGapMs,
+      stillWaitingAfterMs,
+      ...(onStillWaiting && { onStillWaiting }),
+      ...(signal && { signal }),
+    });
     onHandshake?.(mode);
 
     const blocks = Math.max(1, Math.ceil(image.length / BLOCK));
@@ -102,23 +127,47 @@ export async function xmodemSend(
 
 async function waitForHandshake(
   stream: ByteStream,
-  timeoutMs: number,
-  quietMs: number,
-  signal?: AbortSignal,
+  opts: {
+    timeoutMs: number;
+    quietMs: number;
+    repeatGapMs: number;
+    stillWaitingAfterMs: number;
+    onStillWaiting?: () => void;
+    signal?: AbortSignal;
+  },
 ): Promise<XmodemMode> {
-  const deadline = Date.now() + timeoutMs;
+  const { quietMs, repeatGapMs, signal, onStillWaiting } = opts;
+  const modeOf = (b: number): XmodemMode => (b === C ? 'crc' : 'checksum');
+  /** The previous byte, if it was a handshake byte, and when it arrived. */
+  let prev = null as { byte: number; at: number } | null;
+  const deadline = Date.now() + opts.timeoutMs;
+  let stillWaitingAt = onStillWaiting ? Date.now() + opts.stillWaitingAfterMs : Infinity;
   let next: number | null = null;
   for (;;) {
-    const b = next ?? (await stream.readByte(deadline - Date.now(), signal));
+    const waitUntil = Math.min(deadline, stillWaitingAt);
+    const b = next ?? (await stream.readByte(waitUntil - Date.now(), signal));
     next = null;
+    if (b === null && stillWaitingAt !== Infinity) {
+      stillWaitingAt = Infinity;
+      onStillWaiting?.();
+      continue;
+    }
+    // Node/Chrome timers can fire a millisecond early; not deterministically testable.
+    /* v8 ignore next */
+    if (b === null && Date.now() < deadline) continue;
     if (b === null) {
       throw new ProtocolError(
         'The board didn’t start receiving. Press RESET on the board, then try uploading again.',
       );
     }
+    const at = Date.now();
     if (b === C || b === NAK) {
+      if (prev?.byte === b && at - prev.at >= repeatGapMs) return modeOf(b);
+      prev = { byte: b, at };
       next = await stream.readByte(quietMs, signal);
-      if (next === null) return b === C ? 'crc' : 'checksum';
+      if (next === null) return modeOf(b);
+    } else {
+      prev = null;
     }
   }
 }

@@ -13,8 +13,11 @@
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
-    "@codetochip/flasher": "workspace:*",
+    "@codetochip/boards": "workspace:*",
     "@types/w3c-web-serial": "^1.0.8",
     "@types/w3c-web-usb": "^1.0.14"
+  },
+  "dependencies": {
+    "@codetochip/flasher": "workspace:*"
   }
 }

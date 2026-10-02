@@ -11,5 +11,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "ajv": "^8.20.0"
   }
 }

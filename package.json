@@ -12,6 +12,7 @@
     "build": "pnpm -r build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:rules": "pnpm --filter @codetochip/firebase test",
     "test:e2e": "pnpm --filter @codetochip/web test:e2e",
     "emulators": "pnpm --filter @codetochip/firebase dev",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^5.0.3",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",

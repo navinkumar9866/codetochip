@@ -12,11 +12,20 @@ export class WebUsbSerialTransport implements Transport {
   private endpoints: BridgeEndpoints | null = null;
   private reading = false;
 
+  /** `usb` is navigator.usb; injectable for tests. Used to notice unplugging immediately. */
   constructor(
     readonly device: USBDevice,
     readonly driver: BridgeDriver,
     readonly kind: TransportKind,
+    private readonly usb: EventTarget | undefined = globalThis.navigator?.usb,
   ) {}
+
+  private readonly onDisconnect = (event: Event) => {
+    if ((event as USBConnectionEvent).device !== this.device) return;
+    this.reading = false;
+    this.endpoints = null;
+    this.queue.end(new DisconnectedError());
+  };
 
   get readable(): AsyncIterable<Uint8Array> {
     return this.queue.iterable();
@@ -24,6 +33,7 @@ export class WebUsbSerialTransport implements Transport {
 
   async open({ baudRate }: { baudRate: number }): Promise<void> {
     this.queue = new ChunkQueue();
+    this.usb?.addEventListener('disconnect', this.onDisconnect);
     this.endpoints = await this.driver.open();
     await this.driver.setBaudRate(baudRate);
     // Assert DTR/RTS like desktop OS drivers do on open, so both transports behave alike.
@@ -69,6 +79,7 @@ export class WebUsbSerialTransport implements Transport {
   }
 
   async close(): Promise<void> {
+    this.usb?.removeEventListener('disconnect', this.onDisconnect);
     this.reading = false;
     this.endpoints = null;
     await this.driver.close();

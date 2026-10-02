@@ -29,9 +29,20 @@ export interface FlashProgress {
   message?: string;
 }
 
+/** How to put the board into its bootloader. Mirrors the board manifest's `flash.reset`. */
+export type ResetStrategy =
+  | { method: 'manual'; prompt: string }
+  | { method: 'dtr-rts'; sequence: { dtr?: boolean; rts?: boolean; delayMs: number }[] };
+
+/** Built by the app from the board manifest; protocols never read manifests themselves. */
 export interface FlashOptions {
-  /** Flash mode id from the board manifest, e.g. 'ram' or 'persistent'. */
-  mode: string;
+  /** Where the image goes: the flash mode's `target` in the manifest. */
+  target: 'ram' | 'persistent';
+  reset: ResetStrategy;
+  /** Largest image the bootloader accepts in this mode. */
+  maxImageBytes?: number;
+  /** Whether the bootloader needs a reset after a cancelled upload. */
+  afterCancel?: 'reset-required' | 'ready';
   /** How long to wait for the bootloader, e.g. while the user presses RESET. */
   handshakeTimeoutMs?: number;
 }
