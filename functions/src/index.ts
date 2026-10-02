@@ -6,8 +6,14 @@ import { changeRole, listUsersWithRoles, RoleChangeError } from './roles.ts';
 
 initializeApp();
 
+/**
+ * Browsers must be able to reach callables (Cloud Run "public" invoker). Who may do what is
+ * checked inside each function from the caller's Firebase ID token (admin role).
+ */
+const CALLABLE = { region: 'asia-south1', invoker: 'public' } as const;
+
 /** Called from the admin app (Roles screen). Region matches the rest of the stack (Mumbai). */
-export const setUserRole = onCall({ region: 'asia-south1' }, async (request) => {
+export const setUserRole = onCall(CALLABLE, async (request) => {
   try {
     return await changeRole(
       {
@@ -33,7 +39,7 @@ export const setUserRole = onCall({ region: 'asia-south1' }, async (request) => 
 });
 
 /** Admin Roles screen: all accounts with their real role. Anonymous guests are left out. */
-export const listUsers = onCall({ region: 'asia-south1' }, async (request) => {
+export const listUsers = onCall(CALLABLE, async (request) => {
   try {
     return await listUsersWithRoles(
       async () => {

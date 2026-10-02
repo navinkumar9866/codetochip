@@ -28,3 +28,4 @@ packages/test-fixtures/build/
 
 # Built Cloud Functions
 functions/lib/
+functions/dist/

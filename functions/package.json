@@ -5,12 +5,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "description": "Cloud Functions: trusted server code (role changes).",
-  "main": "lib/index.js",
+  "main": "dist/index.js",
   "engines": {
     "node": "22"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=lib/index.js --external:firebase-admin --external:firebase-functions",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc -p ."
   },
   "dependencies": {

@@ -64,6 +64,7 @@ Follow the checklist in `docs/PLAN.md` → "Board onboarding kit". A board is do
 - `pnpm seed` loads demo content and test users into the emulators (prints them)
 - `pnpm set-role <email> <role>` sets a user's role (emulators by default)
 - `functions/` holds Cloud Functions (`setUserRole`, `listUsers`); `pnpm --filter @codetochip/functions build` bundles them (the emulator loads `functions/lib`)
+- `pnpm deploy:rules` / `pnpm deploy:functions` deploy to the real project (`--project prod` = `codetochip`). Always use these (the repo's firebase-tools), never a global `firebase` binary. Run `pnpm test:rules` first. Ask Navin before deploying.
 - `pnpm test` runs Vitest across packages; `pnpm test:rules` runs rules + data-layer tests in the emulators
 - `pnpm test:e2e` runs Playwright (web, with mocked serial)
 - `pnpm lint` / `pnpm typecheck` / `pnpm format`

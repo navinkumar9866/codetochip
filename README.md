@@ -40,6 +40,17 @@ pnpm seed         # second terminal: demo content + test users (admin, editor, s
 
 Emulator UI: http://localhost:4000. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
+## Deploying (maintainers with access to the `codetochip` Firebase project)
+
+```sh
+pnpm deploy:rules       # Firestore + Storage security rules and indexes
+pnpm deploy:functions   # Cloud Functions (builds functions/dist first)
+```
+
+These use the repo's own firebase-tools (on your Node), not a globally installed `firebase`
+binary: the standalone binary bundles an older Node that can't run the pnpm build step.
+Run `pnpm test:rules` before deploying rules.
+
 ## Adding a package
 
 Create `packages/<name>/` with a `package.json` named `@codetochip/<name>` whose `exports` point at `./src/index.ts`, and a `tsconfig.json` extending `../../tsconfig.base.json`. Tests go in `test/*.test.ts` and are picked up by the root Vitest run automatically. Depend on it with `pnpm --filter <consumer> add '@codetochip/<name>@workspace:*'`.

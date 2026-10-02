@@ -27,10 +27,9 @@
   },
   "functions": [
     {
-      "source": "functions",
+      "source": "functions/dist",
       "codebase": "default",
-      "predeploy": ["pnpm --filter @codetochip/functions build"],
-      "ignore": ["src", "test", "node_modules", "*.log"]
+      "predeploy": ["pnpm --filter @codetochip/functions build"]
     }
   ]
 }

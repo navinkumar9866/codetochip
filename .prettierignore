@@ -5,3 +5,4 @@ playwright-report/
 test-results/
 packages/test-fixtures/transcripts/
 functions/lib/
+functions/dist/

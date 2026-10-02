@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/playwright-report/**',
       '**/test-results/**',
       'functions/lib/**',
+      'functions/dist/**',
     ],
   },
   js.configs.recommended,
@@ -24,7 +25,14 @@ export default tseslint.config(
     rules: reactHooks.configs.recommended.rules,
   },
   {
-    files: ['services/**/*.ts', 'firebase/**/*.ts', '*.config.{js,ts}', '**/*.config.{js,ts}'],
+    files: [
+      'services/**/*.ts',
+      'firebase/**/*.ts',
+      'functions/**/*.{ts,mjs}',
+      '**/scripts/**/*.{js,mjs,ts}',
+      '*.config.{js,ts}',
+      '**/*.config.{js,ts}',
+    ],
     languageOptions: { globals: globals.node },
   },
 
