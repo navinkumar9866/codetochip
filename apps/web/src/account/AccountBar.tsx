@@ -37,10 +37,16 @@ export function AccountBar({ user }: { user: AppUser | null | undefined }) {
             </span>
           )}
           <button
-            className="rounded-md bg-sky-600 px-3 py-1.5 font-medium text-white"
+            aria-label={user?.isAnonymous ? 'Sign in to keep your work' : 'Sign in with Google'}
+            className="rounded-md bg-sky-600 px-3 py-1.5 font-medium whitespace-nowrap text-white"
             onClick={() => void signIn()}
           >
-            {user?.isAnonymous ? 'Sign in to keep your work' : 'Sign in with Google'}
+            <span aria-hidden className="sm:hidden">
+              Sign in
+            </span>
+            <span aria-hidden className="hidden sm:inline">
+              {user?.isAnonymous ? 'Sign in to keep your work' : 'Sign in with Google'}
+            </span>
           </button>
         </>
       )}

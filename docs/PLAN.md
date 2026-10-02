@@ -285,6 +285,21 @@ export interface ToolchainAdapter {
 
 ## Phase 4 — Android and mobile UX
 
+### Phase 4 status (2026-10-02): built; Hardware Gate 4 deferred until phones are available (Navin moved on to Phase 5) (guide: [`docs/hardware/gate-4.md`](hardware/gate-4.md))
+
+- **Faster first load on mobile data:** 255 → 69 KB gzipped. Firebase now loads in the background (`lazyServices`), and the Storage SDK is used only by the admin.
+- **Phone layout (< 1024 px):**
+  - One view at a time (Code, Output, Monitor).
+  - Compile and Upload in a bottom bar.
+  - File tabs in one scrolling row; compact header.
+- **Symbol toolbar** above the keyboard. Brackets and quotes insert their pair, and Tab is included. It keeps editor focus so the keyboard stays open. `interactive-widget=resizes-content` keeps it above the keyboard on Android Chrome.
+- **USB hardening:**
+  - The board reopens automatically when re-plugged (`Reconnector` in the worker).
+  - Clear messages when Android refuses access or another app holds the board.
+  - The screen stays awake during uploads (Wake Lock), with a "keep this screen open" note.
+- **OTG guide page** (`/help/android`) with a diagram, linked from Help and from the IDE on Android.
+- **Tests:** e2e at 380 px (bottom-bar upload, Monitor after upload, symbol toolbar), plus unit tests for reconnect and Android USB errors.
+
 - Responsive layout designed for about 380px width: editor full-screen, bottom action bar (Compile / Flash / Monitor), drawers for files and output.
 - Symbol toolbar above the keyboard: `{ } ( ) [ ] ; < > = " ' # / &`, plus Tab.
 - Harden `WebUsbSerialTransport` and `Cp210xDriver`: reconnect on replug, handle Android permission prompts, and handle the page going to background during a flash.

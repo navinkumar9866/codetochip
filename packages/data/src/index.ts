@@ -8,3 +8,4 @@ export {
   type MemoryServiceOptions,
 } from './memory.ts';
 export { signInWithGoogleKeepingWork } from './upgrade.ts';
+export { lazyServices } from './lazy.ts';

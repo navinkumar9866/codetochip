@@ -5,6 +5,7 @@ import type { FirebaseServices } from './init.ts';
 import { createFirestoreProjectRepository } from './projects.ts';
 
 export * from './init.ts';
+export { initFirebaseStorage } from './storage.ts';
 export { createFirebaseAuthService } from './auth.ts';
 export { createFirestoreProjectRepository } from './projects.ts';
 export { createFirestoreContentRepository } from './content.ts';

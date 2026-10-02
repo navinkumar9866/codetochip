@@ -7,7 +7,6 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore';
-import { connectStorageEmulator, getStorage, type FirebaseStorage } from 'firebase/storage';
 
 /** Emulator-only project id. The `demo-` prefix stops the emulators touching any real project. */
 export const DEMO_PROJECT_ID = 'demo-codetochip';
@@ -55,11 +54,10 @@ export interface FirebaseServices {
   app: FirebaseApp;
   auth: Auth;
   db: Firestore;
-  storage: FirebaseStorage;
 }
 
 /** Ports must match firebase.json. */
-const EMULATOR_PORTS = { auth: 9099, firestore: 8080, storage: 9199 };
+export const EMULATOR_PORTS = { auth: 9099, firestore: 8080, storage: 9199 };
 
 export function initFirebase({ options, emulatorHost }: ResolvedFirebaseConfig): FirebaseServices {
   const app = initializeApp(options);
@@ -68,14 +66,13 @@ export function initFirebase({ options, emulatorHost }: ResolvedFirebaseConfig):
   const db = initializeFirestore(app, {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
   });
-  const storage = getStorage(app);
-
   if (emulatorHost) {
     connectAuthEmulator(auth, `http://${emulatorHost}:${EMULATOR_PORTS.auth}`, {
       disableWarnings: true,
     });
     connectFirestoreEmulator(db, emulatorHost, EMULATOR_PORTS.firestore);
-    connectStorageEmulator(storage, emulatorHost, EMULATOR_PORTS.storage);
   }
-  return { app, auth, db, storage };
+  // Storage is only used by the admin (media uploads): see ./storage.ts. Keeping it out of
+  // here keeps the Storage SDK out of the student-facing app's download.
+  return { app, auth, db };
 }

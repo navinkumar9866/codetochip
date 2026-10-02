@@ -5,6 +5,7 @@ import {
   NotSignedInError,
   PROJECT_LIMITS,
   signInWithGoogleKeepingWork,
+  lazyServices,
   validateProjectInput,
   type AppUser,
   type ProjectInput,
@@ -122,5 +123,26 @@ describe('content', () => {
       ],
     });
     expect((await s.content.listExamples('aries-v3')).map((e) => e.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('lazyServices', () => {
+  it('queues calls and auth listeners until the backend has loaded', async () => {
+    let resolve!: (s: ReturnType<typeof createMemoryServices>) => void;
+    const lazy = lazyServices(() => new Promise((r) => (resolve = r)));
+    const seen: (string | null)[] = [];
+    const unsubscribe = lazy.auth.onChange((u) => seen.push(u?.uid ?? null));
+    expect(lazy.auth.currentUser()).toBeNull();
+    const user = lazy.auth.ensureUser();
+    expect(seen).toEqual([]);
+
+    const real = createMemoryServices();
+    resolve(real);
+    expect((await user).isAnonymous).toBe(true);
+    expect(lazy.auth.currentUser()?.uid).toBe((await user).uid);
+    await lazy.projects.create(blink);
+    expect((await lazy.projects.listMine()).map((p) => p.name)).toEqual(['Blink']);
+    expect(seen.at(-1)).toBe((await user).uid);
+    unsubscribe();
   });
 });

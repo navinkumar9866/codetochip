@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { boards } from '@codetochip/boards';
 import { detectTransport } from '@codetochip/flasher';
 
@@ -25,6 +26,11 @@ export function HelpPage() {
             : 'This browser can connect to boards over USB.'}{' '}
           Supported: Chrome, Edge, Brave or Opera on Windows, macOS and Linux, and Chrome on
           Android. iPhones and iPads can write and compile code and download the .bin file.
+        </p>
+        <p className="mt-2 text-sm">
+          <Link to="/help/android" className="text-sky-400 underline">
+            Using an Android phone: what you need and how to connect
+          </Link>
         </p>
       </section>
 

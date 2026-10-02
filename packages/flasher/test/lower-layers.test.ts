@@ -142,6 +142,17 @@ describe('USB bridge errors', () => {
     ).rejects.toThrow(/no serial data interface/);
   });
 
+  it.each([
+    [{ openError: 'SecurityError' }, /tap Allow/],
+    [{ claimError: 'NetworkError' }, /Another app is using the board/],
+    [{ openError: 'InvalidStateError' }, /Another app is using the board/],
+    [{ claimError: 'AbortError' }, /Unable to claim interface/],
+  ])('explains Android USB errors (%o)', async (opts, message) => {
+    await expect(new Cp210xDriver(createFakeUsbDevice(opts).device).open()).rejects.toThrow(
+      message,
+    );
+  });
+
   it('clears a stalled IN endpoint and keeps reading; reports failed writes', async () => {
     const usb = createFakeUsbDevice({ stallFirstIn: true, outStatus: 'stall' });
     const t = new WebUsbSerialTransport(

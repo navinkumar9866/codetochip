@@ -18,7 +18,9 @@ export type DeviceEvent =
   | { type: 'serial'; data: Uint8Array }
   | { type: 'progress'; progress: FlashProgress }
   | { type: 'state'; state: SessionState }
-  | { type: 'disconnect'; message: string };
+  | { type: 'disconnect'; message: string }
+  /** The board was plugged back in and reopened by itself. */
+  | { type: 'reconnected' };
 
 export type FromWorker =
   | { type: 'reply'; id: number; ok: true; value?: unknown }

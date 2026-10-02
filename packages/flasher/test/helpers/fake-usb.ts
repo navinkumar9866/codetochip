@@ -5,6 +5,8 @@ export function createFakeUsbDevice(
     outStatus?: USBTransferStatus;
     stallFirstIn?: boolean;
     noBulk?: boolean;
+    openError?: string;
+    claimError?: string;
   } = {},
 ) {
   let stallNext = opts.stallFirstIn ?? false;
@@ -33,6 +35,7 @@ export function createFakeUsbDevice(
     opened: false,
     configuration: null as typeof configuration | null,
     async open() {
+      if (opts.openError) throw new DOMException('Access denied.', opts.openError);
       device.opened = true;
     },
     async close() {
@@ -42,6 +45,7 @@ export function createFakeUsbDevice(
       device.configuration = configuration;
     },
     async claimInterface(n: number) {
+      if (opts.claimError) throw new DOMException('Unable to claim interface.', opts.claimError);
       claimed.add(n);
     },
     async releaseInterface(n: number) {

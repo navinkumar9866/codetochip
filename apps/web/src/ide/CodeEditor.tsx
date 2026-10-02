@@ -1,22 +1,33 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { basicSetup } from 'codemirror';
 import { cpp } from '@codemirror/lang-cpp';
 import { lintGutter, setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint';
 import { EditorState, type Text } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView, keymap } from '@codemirror/view';
-import { indentWithTab } from '@codemirror/commands';
+import { indentWithTab, insertTab } from '@codemirror/commands';
 import type { Diagnostic } from '../compile/client.ts';
+
+/** Lets other controls (the phone symbol toolbar) type into the editor. */
+export interface EditorApi {
+  /** Inserts text at the cursor; brackets and quotes get their closing pair. */
+  insert(text: string): void;
+  tab(): void;
+}
+
+const PAIRS: Record<string, string> = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
 
 /** C/C++ editor for one file; compile diagnostics appear inline at their line and column. */
 export function CodeEditor({
   value,
   onChange,
   diagnostics,
+  apiRef,
 }: {
   value: string;
   onChange: (value: string) => void;
   diagnostics: Diagnostic[];
+  apiRef?: RefObject<EditorApi | null>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -44,6 +55,24 @@ export function CodeEditor({
       }),
     });
     view.current = v;
+    if (apiRef) {
+      apiRef.current = {
+        insert(text) {
+          const close = PAIRS[text] ?? '';
+          const { from, to } = v.state.selection.main;
+          v.dispatch({
+            changes: { from, to, insert: text + close },
+            selection: { anchor: from + text.length },
+            scrollIntoView: true,
+          });
+          v.focus();
+        },
+        tab() {
+          insertTab(v);
+          v.focus();
+        },
+      };
+    }
     return () => v.destroy();
     // Created once; later value changes are applied below without losing cursor or undo.
     // eslint-disable-next-line react-hooks/exhaustive-deps

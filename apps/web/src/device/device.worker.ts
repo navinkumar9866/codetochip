@@ -10,9 +10,45 @@ import {
   type Transport,
 } from '@codetochip/flasher';
 import type { DeviceEvent, FromWorker, PortRef, ToWorker } from './messages.ts';
+import { Reconnector } from './reconnect.ts';
 
 declare const self: DedicatedWorkerGlobalScope;
 let session: DeviceSession | null = null;
+let current: { port: PortRef; baudRate: number } | null = null;
+
+async function openSession(port: PortRef, baudRate: number) {
+  await session?.close();
+  const transport = await findTransport(port);
+  session = new DeviceSession(transport, baudRate, {
+    onSerial: (data) => emit({ type: 'serial', data }),
+    onProgress: (progress) => emit({ type: 'progress', progress }),
+    onState: (state) => emit({ type: 'state', state }),
+    onDisconnect: (message) => {
+      if (current) reconnector.disconnected(current.port);
+      emit({ type: 'disconnect', message });
+    },
+  });
+  await session.open();
+  current = { port, baudRate };
+}
+
+const reconnector = new Reconnector(
+  [
+    (navigator as Navigator & { usb?: EventTarget }).usb,
+    (navigator as Navigator & { serial?: EventTarget }).serial,
+  ],
+  async (port) => {
+    if (!current) return;
+    // Give the OS a moment to finish enumerating the device.
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      await openSession(port, current.baudRate);
+      emit({ type: 'reconnected' });
+    } catch {
+      // Still not usable; the user can connect again by hand.
+    }
+  },
+);
 
 const emit = (event: DeviceEvent) => {
   const msg: FromWorker = { type: 'event', event };
@@ -49,25 +85,20 @@ async function handle(msg: ToWorker): Promise<unknown> {
   switch (msg.type) {
     case 'capabilities':
       return { serial: 'serial' in navigator, usb: 'usb' in navigator };
-    case 'open': {
-      await session?.close();
-      const transport = await findTransport(msg.port);
-      session = new DeviceSession(transport, msg.baudRate, {
-        onSerial: (data) => emit({ type: 'serial', data }),
-        onProgress: (progress) => emit({ type: 'progress', progress }),
-        onState: (state) => emit({ type: 'state', state }),
-        onDisconnect: (message) => emit({ type: 'disconnect', message }),
-      });
-      await session.open();
+    case 'open':
+      reconnector.forget();
+      await openSession(msg.port, msg.baudRate);
       return;
-    }
     case 'close':
+      reconnector.forget();
+      current = null;
       await session?.close();
       session = null;
       return;
     case 'write':
       return session?.write(msg.data);
     case 'baud':
+      if (current) current.baudRate = msg.baudRate;
       return session?.setBaudRate(msg.baudRate);
     case 'flash':
       if (!session) throw new Error('Connect the board first.');

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { boards, flashOptionsFor, getBoard, type BoardManifest } from '@codetochip/boards';
 import { validateProjectInput, type ProjectFile } from '@codetochip/data';
-import { getProtocol, type FlashProgress } from '@codetochip/flasher';
+import { detectTransport, getProtocol, type FlashProgress } from '@codetochip/flasher';
 import { compileOnServer, type CompileOutcome, type CompileProgress } from '../compile/client.ts';
 import { builtinExamples, starterFiles } from '../examples/builtin.ts';
-import { CodeEditor } from '../ide/CodeEditor.tsx';
+import { CodeEditor, type EditorApi } from '../ide/CodeEditor.tsx';
+import { SymbolBar } from '../ide/SymbolBar.tsx';
+import { useMediaQuery } from '../ide/use-media-query.ts';
 import { useDevice, useDeviceState } from '../ide/device-context.tsx';
 import { SerialMonitor } from '../ide/SerialMonitor.tsx';
 import { useServices } from '../services.tsx';
@@ -43,6 +45,14 @@ export function IdePage() {
   } | null>(null);
   const [flash, setFlash] = useState<FlashProgress | null>(null);
   const [panel, setPanel] = useState<'output' | 'serial'>('output');
+  // Phones (< 1024 px) show one view at a time, switched from a bottom bar.
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const [phoneView, setPhoneView] = useState<'code' | 'output' | 'serial'>('code');
+  const editorApi = useRef<EditorApi | null>(null);
+  const show = (p: 'output' | 'serial') => {
+    setPanel(p);
+    setPhoneView(p);
+  };
   // The binary from the last successful compile, and what it was built from.
   const built = useRef<{ key: string; binary: Uint8Array } | null>(null);
 
@@ -144,7 +154,13 @@ export function IdePage() {
     if (!device) return;
     return device.subscribe((e) => {
       if (e.type === 'progress') setFlash(e.progress);
-      if (e.type === 'disconnect') setMessage({ kind: 'error', text: e.message });
+      if (e.type === 'disconnect') {
+        setMessage({
+          kind: 'error',
+          text: `${e.message} It will reconnect by itself when you plug it back in.`,
+        });
+      }
+      if (e.type === 'reconnected') setMessage({ kind: 'info', text: 'Board reconnected.' });
     });
   }, [device]);
 
@@ -176,6 +192,7 @@ export function IdePage() {
         });
         const file = first ? draft.files.findIndex((f) => f.path === first.file) : -1;
         if (file >= 0) setActive(file);
+        setPhoneView('code');
         return null;
       }
       built.current = { key: buildKey, binary: r.binary };
@@ -214,16 +231,19 @@ export function IdePage() {
     const binary = await ensureBuilt();
     if (!binary) return;
     setBusy({ kind: 'upload' });
+    // Android freezes pages (and their workers) when the screen turns off; keep it on.
+    const wakeLock = await navigator.wakeLock?.request('screen').catch(() => null);
     try {
       await device.flash(board.flash.protocol, binary, {
         ...flashOptionsFor(board, modeId),
         handshakeTimeoutMs: 60_000,
       });
       setMessage({ kind: 'success', text: 'Uploaded. Your program is running.' });
-      setPanel('serial');
+      show('serial');
     } catch (e) {
       setMessage({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
+      void wakeLock?.release();
       setBusy(null);
     }
   };
@@ -267,10 +287,10 @@ export function IdePage() {
           onChange={(e) => edit({ name: e.target.value })}
         />
         <SaveBadge state={save} />
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="flex w-full items-center gap-2 lg:ml-auto lg:w-auto">
           <select
             aria-label="Board"
-            className="rounded bg-slate-800 px-2 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1.5 text-sm lg:flex-none"
             value={draft.boardId}
             onChange={(e) => {
               const b = getBoard(e.target.value)!;
@@ -286,7 +306,7 @@ export function IdePage() {
           </select>
           <select
             aria-label="Upload mode"
-            className="rounded bg-slate-800 px-2 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1.5 text-sm lg:flex-none"
             value={modeId}
             onChange={(e) => setModeId(e.target.value)}
           >
@@ -300,37 +320,45 @@ export function IdePage() {
               );
             })}
           </select>
-          <button
-            className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium disabled:opacity-40"
-            disabled={!!busy}
-            onClick={() => {
-              built.current = null;
-              void ensureBuilt();
-            }}
-          >
-            {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Compile'}
-          </button>
-          <button
-            className="rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-            disabled={!!busy || !device}
-            onClick={() => void upload()}
-          >
-            {busy?.kind === 'upload' ? 'Uploading…' : 'Upload'}
-          </button>
-          {busy?.kind === 'upload' && (
-            <button
-              className="rounded px-2 py-1.5 text-sm text-slate-300"
-              onClick={() => device?.cancelFlash()}
-            >
-              Cancel
-            </button>
+          {wide && (
+            <>
+              <button
+                className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium disabled:opacity-40"
+                disabled={!!busy}
+                onClick={() => {
+                  built.current = null;
+                  void ensureBuilt();
+                }}
+              >
+                {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Compile'}
+              </button>
+              <button
+                className="rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+                disabled={!!busy || !device}
+                onClick={() => void upload()}
+              >
+                {busy?.kind === 'upload' ? 'Uploading…' : 'Upload'}
+              </button>
+              {busy?.kind === 'upload' && (
+                <button
+                  className="rounded px-2 py-1.5 text-sm text-slate-300"
+                  onClick={() => device?.cancelFlash()}
+                >
+                  Cancel
+                </button>
+              )}
+            </>
           )}
           <button
             className="rounded px-2 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-40"
             disabled={!!busy}
+            aria-label="Download .bin"
             onClick={() => void download()}
           >
-            Download .bin
+            <span aria-hidden className="lg:hidden">
+              ⬇ .bin
+            </span>
+            <span className="hidden lg:inline">Download .bin</span>
           </button>
         </div>
       </div>
@@ -338,6 +366,11 @@ export function IdePage() {
       {waitingForReset && (
         <div role="status" className="bg-amber-500 px-4 py-3 text-center font-semibold text-black">
           {board.flash.reset.method === 'manual' ? board.flash.reset.prompt : ''}
+          {!wide && (
+            <span className="block text-sm font-normal">
+              Keep this screen open until it finishes.
+            </span>
+          )}
         </div>
       )}
       {busy?.kind === 'upload' && flash?.stage === 'transferring' && flash.totalBytes ? (
@@ -362,9 +395,19 @@ export function IdePage() {
           {message.text}
         </p>
       )}
+      {!connected && detectTransport().kind === 'webusb' && (
+        <p className="bg-slate-900 px-4 py-2 text-sm text-slate-300">
+          Connecting with a phone?{' '}
+          <Link to="/help/android" className="text-sky-400 underline">
+            See what you need
+          </Link>
+        </p>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="flex min-h-80 flex-1 flex-col lg:min-h-0">
+        <section
+          className={`min-h-0 flex-1 flex-col ${wide || phoneView === 'code' ? 'flex' : 'hidden'}`}
+        >
           <FileTabs
             files={draft.files}
             active={active}
@@ -380,6 +423,7 @@ export function IdePage() {
           />
           <div className="min-h-0 flex-1">
             <CodeEditor
+              apiRef={editorApi}
               value={file.content}
               diagnostics={diagnosticsFor(file.path)}
               onChange={(content) =>
@@ -389,18 +433,22 @@ export function IdePage() {
           </div>
         </section>
 
-        <section className="flex min-h-72 flex-col border-t border-slate-800 lg:w-[28rem] lg:border-t-0 lg:border-l">
+        <section
+          className={`min-h-0 flex-1 flex-col lg:w-[28rem] lg:flex-none lg:border-l lg:border-slate-800 ${
+            wide || phoneView !== 'code' ? 'flex' : 'hidden'
+          }`}
+        >
           <div
             className="flex items-center gap-1 border-b border-slate-800 px-2 text-sm"
             role="tablist"
           >
-            {(['output', 'serial'] as const).map((p) => (
+            {(wide ? (['output', 'serial'] as const) : []).map((p) => (
               <button
                 key={p}
                 role="tab"
                 aria-selected={panel === p}
                 className={`px-3 py-2 ${panel === p ? 'border-b-2 border-sky-500 text-white' : 'text-slate-400'}`}
-                onClick={() => setPanel(p)}
+                onClick={() => show(p)}
               >
                 {p === 'output' ? 'Output' : 'Serial monitor'}
               </button>
@@ -422,17 +470,18 @@ export function IdePage() {
             </span>
           </div>
           <div className="min-h-0 flex-1 p-2">
-            {panel === 'output' ? (
+            {(wide ? panel : phoneView) === 'output' ? (
               <Output
                 outcome={outcome}
-                onJump={(path) =>
+                onJump={(path) => {
                   setActive(
                     Math.max(
                       0,
                       draft.files.findIndex((f) => f.path === path),
                     ),
-                  )
-                }
+                  );
+                  setPhoneView('code');
+                }}
               />
             ) : (
               <SerialMonitor
@@ -445,6 +494,56 @@ export function IdePage() {
           </div>
         </section>
       </div>
+      {!wide && phoneView === 'code' && <SymbolBar editor={editorApi} />}
+      {!wide && (
+        <nav
+          aria-label="Editor"
+          className="grid grid-cols-5 border-t border-slate-800 bg-slate-900 text-xs"
+        >
+          {(
+            [
+              ['code', 'Code'],
+              ['output', 'Output'],
+              ['serial', 'Monitor'],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              aria-pressed={phoneView === v}
+              className={`py-3 ${phoneView === v ? 'text-white' : 'text-slate-400'}`}
+              onClick={() => (v === 'code' ? setPhoneView('code') : show(v))}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            className="m-1 rounded bg-slate-700 font-medium disabled:opacity-40"
+            disabled={!!busy}
+            onClick={() => {
+              built.current = null;
+              void ensureBuilt();
+            }}
+          >
+            {busy?.kind === 'compile' ? '…' : 'Compile'}
+          </button>
+          {busy?.kind === 'upload' ? (
+            <button
+              className="m-1 rounded bg-slate-600 font-medium"
+              onClick={() => device?.cancelFlash()}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              className="m-1 rounded bg-sky-600 font-medium text-white disabled:opacity-40"
+              disabled={!!busy || !device}
+              onClick={() => void upload()}
+            >
+              Upload
+            </button>
+          )}
+        </nav>
+      )}
     </div>
   );
 }
@@ -483,7 +582,7 @@ function FileTabs({
   const [adding, setAdding] = useState<string | null>(null);
   return (
     <div
-      className="flex flex-wrap items-center gap-1 border-b border-slate-800 bg-slate-900 px-2 text-sm"
+      className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-800 bg-slate-900 px-2 text-sm whitespace-nowrap"
       role="tablist"
     >
       {files.map((f, i) => (

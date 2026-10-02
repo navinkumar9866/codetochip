@@ -6,6 +6,12 @@ import { expect, test, type Page } from '@playwright/test';
 
 const MOCK = 'services=memory&device=mock';
 
+/** Phones show one view at a time; open it from the bottom bar if there is one. */
+async function openView(page: Page, name: 'Code' | 'Output' | 'Monitor') {
+  const bar = page.getByRole('navigation', { name: 'Editor' });
+  if (await bar.isVisible()) await bar.getByRole('button', { name, exact: true }).click();
+}
+
 async function fakeCompiler(page: Page, outcome: object, binary = new Uint8Array(4396).fill(0x13)) {
   let polls = 0;
   await page.route('**/api/compile', (route) =>
@@ -70,8 +76,9 @@ test('shows compile errors inline and in plain words', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText(
     "Fix the error in blink.ino line 4: 'pinMod' was not declared in this scope",
   );
-  await expect(page.getByRole('list', { name: 'Problems' })).toContainText('blink.ino:4:3');
   await expect(page.locator('.cm-lintRange-error')).toHaveCount(1);
+  await openView(page, 'Output');
+  await expect(page.getByRole('list', { name: 'Problems' })).toContainText('blink.ino:4:3');
 });
 
 test('a guest’s work is saved automatically', async ({ page }) => {
@@ -85,7 +92,12 @@ test('a guest’s work is saved automatically', async ({ page }) => {
 
 test('works at 380 px wide without sideways scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
-  for (const path of [`/?${MOCK}`, `/ide?example=builtin-blink&${MOCK}`, `/help?${MOCK}`]) {
+  for (const path of [
+    `/?${MOCK}`,
+    `/ide?example=builtin-blink&${MOCK}`,
+    `/help?${MOCK}`,
+    `/help/android?${MOCK}`,
+  ]) {
     await page.goto(path);
     await expect(page.getByRole('link', { name: 'CodeToChip' })).toBeVisible();
     const overflow = await page.evaluate(
@@ -93,4 +105,39 @@ test('works at 380 px wide without sideways scrolling', async ({ page }) => {
     );
     expect(overflow, path).toBeLessThanOrEqual(0);
   }
+});
+
+test.describe('phone layout', () => {
+  test.use({ viewport: { width: 380, height: 780 }, hasTouch: true, isMobile: true });
+
+  test('one view at a time, with Compile and Upload in the bottom bar', async ({ page }) => {
+    await fakeCompiler(page, ok);
+    await page.goto(`/ide?example=builtin-hello-serial&${MOCK}`);
+    const bar = page.getByRole('navigation', { name: 'Editor' });
+    await expect(bar.getByRole('button', { name: 'Upload' })).toBeVisible();
+    await expect(page.getByTestId('code-editor')).toBeVisible();
+    await expect(page.getByTestId('serial-output')).toBeHidden();
+
+    await bar.getByRole('button', { name: 'Upload' }).click();
+    await expect(page.getByText('Uploaded. Your program is running.')).toBeVisible({
+      timeout: 15_000,
+    });
+    // Monitor opens by itself after an upload.
+    await expect(page.getByTestId('serial-output')).toContainText('Hello from CodeToChip 0');
+    await expect(page.getByTestId('code-editor')).toBeHidden();
+  });
+
+  test('symbol toolbar types brackets with their pair, and Tab', async ({ page }) => {
+    await page.goto(`/ide?${MOCK}`);
+    const editor = page.locator('.cm-content');
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Delete');
+    const symbols = page.getByRole('toolbar', { name: 'Symbols' });
+    await symbols.getByRole('button', { name: 'Tab' }).click();
+    await symbols.getByRole('button', { name: 'Insert {' }).click();
+    await symbols.getByRole('button', { name: 'Insert ;' }).click();
+    await expect(editor).toHaveText('\t{;}');
+    await expect(editor).toBeFocused();
+  });
 });

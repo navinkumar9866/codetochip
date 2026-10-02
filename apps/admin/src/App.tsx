@@ -25,11 +25,19 @@ import {
   type FirebaseUserWrapper,
 } from '@firecms/firebase';
 import { isRole } from '@codetochip/data';
-import { initFirebase, resolveFirebaseConfig, type FirebaseEnv } from '@codetochip/data/firebase';
+import {
+  initFirebase,
+  initFirebaseStorage,
+  resolveFirebaseConfig,
+  type FirebaseEnv,
+} from '@codetochip/data/firebase';
 import { collections, type AdminExtra } from './collections.ts';
 
 // Same config resolution as apps/web: no env vars means local emulators.
-const { app: firebaseApp } = initFirebase(resolveFirebaseConfig(import.meta.env as FirebaseEnv));
+const firebaseConfig = resolveFirebaseConfig(import.meta.env as FirebaseEnv);
+const { app: firebaseApp } = initFirebase(firebaseConfig);
+// Connects Storage to the emulator before FireCMS uses it for media uploads.
+initFirebaseStorage(firebaseApp, firebaseConfig);
 
 const signInOptions: FirebaseSignInProvider[] = ['google.com', 'password'];
 

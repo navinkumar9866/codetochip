@@ -44,7 +44,7 @@ export class Cp210xDriver implements BridgeDriver {
 
   async open(): Promise<BridgeEndpoints> {
     const d = this.device;
-    if (!d.opened) await d.open();
+    if (!d.opened) await d.open().catch(explainOpenError);
     if (d.configuration?.configurationValue !== 1) await d.selectConfiguration(1);
 
     const alt = d.configuration?.interfaces
@@ -58,7 +58,7 @@ export class Cp210xDriver implements BridgeDriver {
     const outEp = alt.endpoints.find((e) => e.type === 'bulk' && e.direction === 'out');
     if (!inEp || !outEp) throw new Error('This USB device has no serial data endpoints.');
 
-    await d.claimInterface(this.interfaceNumber);
+    await d.claimInterface(this.interfaceNumber).catch(explainOpenError);
     await this.control(REQ.IFC_ENABLE, UART_ENABLE);
     await this.control(REQ.SET_LINE_CTL, LINE_8N1);
     await this.control(REQ.PURGE, PURGE_ALL);
@@ -130,4 +130,25 @@ function assertOk(result: USBOutTransferResult, what: string) {
 /** Driver for a manifest's `usb[].bridge` value, or null if we don't have one yet. */
 export function createBridgeDriver(bridge: string, device: USBDevice): Cp210xDriver | null {
   return bridge === 'cp210x' ? new Cp210xDriver(device) : null;
+}
+
+/**
+ * Android reports "board busy" and "permission refused" as generic DOMExceptions; turn them
+ * into steps a user can follow.
+ */
+function explainOpenError(e: unknown): never {
+  const name = (e as { name?: string }).name;
+  if (name === 'SecurityError') {
+    throw new Error(
+      'The browser wasn’t allowed to use the board. Unplug it, plug it back in, and tap Allow when asked.',
+      { cause: e },
+    );
+  }
+  if (name === 'NetworkError' || name === 'InvalidStateError') {
+    throw new Error(
+      'Another app is using the board (for example a serial terminal app). Close it, unplug and replug the board, then connect again.',
+      { cause: e },
+    );
+  }
+  throw e;
 }
