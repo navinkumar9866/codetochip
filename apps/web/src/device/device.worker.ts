@@ -120,6 +120,8 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
         id: msg.id,
         ok: false,
         message: err instanceof Error ? err.message : String(err),
+        // Error class (e.g. CancelledError) survives the trip for telemetry categories.
+        name: err instanceof Error ? err.name : 'Error',
       } satisfies FromWorker),
   );
 };

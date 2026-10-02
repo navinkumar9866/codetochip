@@ -9,7 +9,10 @@ if (!email || !isRole(role)) {
   process.exit(1);
 }
 
-const { auth, projectId } = initAdmin();
+const { auth, db, projectId } = initAdmin();
 const user = await auth.getUserByEmail(email);
 await auth.setCustomUserClaims(user.uid, { ...user.customClaims, role });
+await db
+  .doc(`roles/${user.uid}`)
+  .set({ role, changedBy: 'set-role script', changedAt: new Date() });
 console.log(`${email} is now "${role}" in ${projectId}.`);

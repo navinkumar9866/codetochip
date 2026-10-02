@@ -23,6 +23,7 @@ for (const u of users) {
     existing ??
     (await auth.createUser({ email: u.email, password: PASSWORD, displayName: u.name }));
   await auth.setCustomUserClaims(user.uid, { role: u.role });
+  await db.doc(`roles/${user.uid}`).set({ role: u.role, changedBy: 'seed', changedAt: new Date() });
 }
 
 const hello: Example = {

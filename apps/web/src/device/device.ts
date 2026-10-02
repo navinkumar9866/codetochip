@@ -104,7 +104,7 @@ export class WorkerDevice extends BaseDevice {
       const p = this.pending.get(msg.id);
       this.pending.delete(msg.id);
       if (msg.ok) p?.resolve(msg.value);
-      else p?.reject(new Error(msg.message));
+      else p?.reject(Object.assign(new Error(msg.message), { name: msg.name }));
     };
   }
 

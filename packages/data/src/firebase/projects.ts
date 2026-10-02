@@ -78,6 +78,7 @@ function fromSnapshot(snap: DocumentSnapshot): Project {
     name: d.name,
     boardId: d.boardId,
     files: d.files,
+    ...(d.assignment && { assignment: d.assignment }),
     createdAt: toDate(d.createdAt),
     updatedAt: toDate(d.updatedAt),
   };

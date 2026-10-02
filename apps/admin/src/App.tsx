@@ -32,6 +32,8 @@ import {
   type FirebaseEnv,
 } from '@codetochip/data/firebase';
 import { collections, type AdminExtra } from './collections.ts';
+import { RolesView } from './RolesView.tsx';
+import { UsageView } from './UsageView.tsx';
 
 // Same config resolution as apps/web: no env vars means local emulators.
 const firebaseConfig = resolveFirebaseConfig(import.meta.env as FirebaseEnv);
@@ -77,6 +79,26 @@ export function App() {
   const navigationController = useBuildNavigationController({
     disabled: authLoading,
     collections: useMemo(() => collections, []),
+    // Roles screen only for admins (the Cloud Function checks again).
+    views: ({ authController: a }) =>
+      (a.extra as AdminExtra | undefined)?.role === 'admin'
+        ? [
+            {
+              path: 'roles',
+              name: 'Roles',
+              group: 'Site',
+              icon: 'AdminPanelSettings',
+              view: <RolesView app={firebaseApp} emulatorHost={firebaseConfig.emulatorHost} />,
+            },
+            {
+              path: 'usage',
+              name: 'Usage',
+              group: 'Site',
+              icon: 'Insights',
+              view: <UsageView app={firebaseApp} />,
+            },
+          ]
+        : [],
     authController,
     dataSourceDelegate: firestoreDelegate,
   });

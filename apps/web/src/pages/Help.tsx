@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { boards } from '@codetochip/boards';
 import { detectTransport } from '@codetochip/flasher';
+import { setTelemetryEnabled, telemetryEnabled } from '../telemetry.ts';
 
 /** Help for USB-serial bridge chips (not board-specific: many boards share these chips). */
 const bridgeHelp: Record<string, string[]> = {
@@ -13,6 +15,7 @@ const bridgeHelp: Record<string, string[]> = {
 
 export function HelpPage() {
   const support = detectTransport();
+  const [shareStats, setShareStats] = useState(telemetryEnabled);
   const bridges = [...new Set(boards.flatMap((b) => b.usb.map((u) => u.bridge)))];
   return (
     <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 text-slate-200">
@@ -91,6 +94,25 @@ export function HelpPage() {
           </section>
         ) : null,
       )}
+      <section>
+        <h2 className="text-lg font-medium">Usage statistics</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          To find out which boards, browsers and phones work, CodeToChip records whether compiles
+          and uploads succeed, how long they take, and your operating system and browser name. It
+          never records who you are, your code, or file names.
+        </p>
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={shareStats}
+            onChange={(e) => {
+              setTelemetryEnabled(e.target.checked);
+              setShareStats(e.target.checked);
+            }}
+          />
+          Share anonymous usage statistics
+        </label>
+      </section>
     </div>
   );
 }

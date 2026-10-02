@@ -25,3 +25,6 @@ firebase-export-*/
 
 # Compiled test sketches (contain LGPL core code; never commit)
 packages/test-fixtures/build/
+
+# Built Cloud Functions
+functions/lib/

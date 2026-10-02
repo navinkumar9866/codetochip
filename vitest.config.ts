@@ -23,7 +23,12 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['packages/*/test/**/*.test.ts', 'services/*/test/**/*.test.ts'],
+          include: [
+            'packages/*/test/**/*.test.ts',
+            'services/*/test/**/*.test.ts',
+            'functions/test/**/*.test.ts',
+            'apps/admin/test/**/*.test.ts',
+          ],
         },
       },
     ],

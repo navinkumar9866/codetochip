@@ -24,5 +24,5 @@ export type DeviceEvent =
 
 export type FromWorker =
   | { type: 'reply'; id: number; ok: true; value?: unknown }
-  | { type: 'reply'; id: number; ok: false; message: string }
+  | { type: 'reply'; id: number; ok: false; message: string; name: string }
   | ({ type: 'event' } & { event: DeviceEvent });

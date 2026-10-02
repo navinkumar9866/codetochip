@@ -141,3 +141,157 @@ test.describe('phone layout', () => {
     await expect(editor).toBeFocused();
   });
 });
+
+test('share a sketch by link; someone else opens it read-only and makes a copy', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto(`/ide?example=builtin-blink&${MOCK}`);
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
+  const link = await page
+    .getByRole('dialog', { name: 'Share link' })
+    .getByLabel('Link')
+    .inputValue();
+  expect(link).toMatch(/\/s\/[\w-]+$/);
+
+  // In-memory services live in the page, so open the link in the same page (client navigation).
+  await page.evaluate((path) => {
+    history.pushState({}, '', path);
+    dispatchEvent(new PopStateEvent('popstate'));
+  }, new URL(link).pathname);
+  await expect(page.getByText(/Shared sketch .* read-only/)).toBeVisible();
+  await expect(page.locator('.cm-content')).toContainText('digitalWrite(LED_BUILTIN, HIGH)');
+  await expect(page.locator('.cm-content')).toHaveAttribute('aria-readonly', 'true');
+
+  await page.getByRole('button', { name: 'Make a copy' }).click();
+  await expect(page).toHaveURL(/\/ide\/[\w-]+/);
+  await expect(page.getByLabel('Project name')).toHaveValue('Blink (copy)');
+});
+
+test('a broken share link explains itself', async ({ page }) => {
+  await page.goto(`/s/does-not-exist?${MOCK}`);
+  await expect(page.getByRole('alert')).toContainText('This link doesn’t work');
+});
+
+test('classroom: teacher posts an assignment, a student joins and submits, the teacher sees it', async ({
+  page,
+}) => {
+  const signInAs = (uid: string, displayName: string, role: string) =>
+    page.evaluate(
+      ([uid, displayName, role]) =>
+        (globalThis as unknown as { __services: { setUser(u: object): void } }).__services.setUser({
+          uid,
+          displayName,
+          email: null,
+          photoURL: null,
+          role,
+          isAnonymous: false,
+        }),
+      [uid, displayName, role],
+    );
+
+  await page.goto(`/?${MOCK}`);
+  await signInAs('t1', 'Ms Rao', 'teacher');
+  await page.getByRole('link', { name: 'Classes' }).click();
+  await page.getByLabel('Class name').fill('Grade 9 Robotics');
+  await page.getByRole('button', { name: 'Create class' }).click();
+  const code = (await page.getByLabel('Join code').textContent())!.trim();
+  expect(code).toMatch(/^[2-9A-Z]{6}$/);
+  await page.getByLabel('Assignment title').fill('Blink the LED');
+  await page.getByLabel('Instructions').fill('Make it blink twice a second.');
+  await page.getByLabel('Starter code').selectOption({ label: 'Example: Blink' });
+  await page.getByRole('button', { name: 'Post assignment' }).click();
+  await expect(page.getByText('Blink the LED')).toBeVisible();
+
+  await signInAs('s1', 'Asha', 'student');
+  await page.getByRole('link', { name: 'Classes' }).click();
+  await page.getByLabel('Class code').fill(code.toLowerCase());
+  await page.getByRole('button', { name: 'Join' }).click();
+  await expect(page.getByText('Make it blink twice a second.')).toBeVisible();
+  await expect(page.getByText('Not submitted yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.locator('.cm-content')).toContainText('digitalWrite(LED_BUILTIN, HIGH)');
+  await page.getByRole('button', { name: 'Submit to class' }).click();
+  await expect(page.getByText('Submitted. Your teacher can see it now.')).toBeVisible();
+
+  await signInAs('t1', 'Ms Rao', 'teacher');
+  await page.getByRole('link', { name: 'Classes' }).click();
+  await page.getByRole('link', { name: /Grade 9 Robotics/ }).click();
+  await expect(page.getByText('Students (1)')).toBeVisible();
+  await page.getByRole('button', { name: 'Show submissions' }).click();
+  await expect(page.getByText('1 of 1 submitted')).toBeVisible();
+  await page.getByRole('button', { name: 'Asha' }).click();
+  await expect(page.getByRole('dialog', { name: 'Asha’s submission' })).toContainText(
+    'digitalWrite',
+  );
+});
+
+test('classroom: guests are asked to sign in before joining', async ({ page }) => {
+  await page.goto(`/classes?${MOCK}`);
+  await expect(page.getByText('Sign in with Google to join a class')).toBeVisible();
+});
+
+test('telemetry: an upload records anonymous compile and flash events; opting out stops it', async ({
+  page,
+}) => {
+  const events = () =>
+    page.evaluate(
+      () =>
+        (globalThis as unknown as { __services: { events: Record<string, unknown>[] } }).__services
+          .events,
+    );
+  await fakeCompiler(page, ok);
+  await page.goto(`/ide?example=builtin-hello-serial&${MOCK}`);
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect(page.getByText('Uploaded. Your program is running.')).toBeVisible({
+    timeout: 15_000,
+  });
+  const recorded = await events();
+  expect(recorded.map((e) => [e.kind, e.ok])).toEqual([
+    ['compile', true],
+    ['flash', true],
+  ]);
+  expect(recorded[1]).toMatchObject({
+    board: 'aries-v3',
+    protocol: 'vega-xmodem',
+    bytes: 4396,
+    app: 'web',
+  });
+  // Nothing identifying: no user id, no code, no file names.
+  expect(JSON.stringify(recorded)).not.toMatch(/uid|hello\.ino|Serial\.begin/);
+
+  await page.getByRole('link', { name: 'Help' }).click();
+  await page.getByLabel('Share anonymous usage statistics').uncheck();
+  await page.goBack();
+  await page.getByRole('button', { name: 'Compile', exact: true }).first().click();
+  await page.waitForTimeout(500);
+  expect(await events()).toHaveLength(2);
+});
+
+test('email sign-in link: a guest’s work is kept after signing in by email', async ({ page }) => {
+  type Mem = { __services: { sentLinks: { link: string }[] } };
+  await page.goto(`/ide?${MOCK}`);
+  await page.getByLabel('Project name').fill('Guest work');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign in to keep your work' }).click();
+  await page.getByLabel('Email address').fill('asha@example.com');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByText('Check your email for a sign-in link')).toBeVisible();
+
+  // Arrive at the emailed link (in-app navigation: in-memory accounts live in this page).
+  const link = new URL(
+    await page.evaluate(() => (globalThis as unknown as Mem).__services.sentLinks[0]!.link),
+  );
+  await page.evaluate((path) => {
+    history.pushState({}, '', path);
+    dispatchEvent(new PopStateEvent('popstate'));
+  }, link.pathname + link.search);
+  await expect(page.getByText('You’re signed in.')).toBeVisible();
+  await expect(page.getByText('asha@example.com')).toBeVisible();
+  await expect(page).not.toHaveURL(/emailLink=/);
+
+  await page.getByRole('link', { name: 'Home' }).click();
+  await expect(page.getByRole('link', { name: 'Guest work' })).toBeVisible();
+});

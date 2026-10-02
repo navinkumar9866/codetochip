@@ -1,4 +1,10 @@
-import { validateProjectInput, type Example, type Project, type ProjectInput } from './schema.ts';
+import {
+  validateProjectInput,
+  type Example,
+  type Project,
+  type ProjectInput,
+  type Share,
+} from './schema.ts';
 import {
   InvalidProjectError,
   NotSignedInError,
@@ -7,6 +13,7 @@ import {
   type AuthService,
   type ProjectRepository,
 } from './services.ts';
+import { createMemoryClassroom } from './memory-classroom.ts';
 
 export interface MemoryServiceOptions {
   /** Published examples returned by content.listExamples. */
@@ -21,9 +28,14 @@ export function createMemoryServices(
   options: MemoryServiceOptions = {},
 ): AppServices & {
   setUser(user: AppUser | null): void;
+  events: Record<string, unknown>[];
+  sentLinks: { email: string; link: string }[];
 } {
   let user = initialUser;
   let guests = 0;
+  const events: Record<string, unknown>[] = [];
+  const sentLinks: { email: string; link: string }[] = [];
+  let pending: string | null = null;
   const listeners = new Set<(u: AppUser | null) => void>();
   const setUser = (u: AppUser | null) => {
     user = u;
@@ -61,6 +73,30 @@ export function createMemoryServices(
         isAnonymous: false,
       });
     },
+    async sendEmailLink(email, returnUrl) {
+      const link = new URL(returnUrl);
+      link.searchParams.set('emailLink', email);
+      sentLinks.push({ email, link: link.toString() });
+      pending = email;
+    },
+    async completeEmailLink(url, email) {
+      const linked = new URL(url).searchParams.get('emailLink');
+      if (!linked) return false;
+      const address = email ?? pending;
+      if (address !== linked) throw new Error('Enter the email address the link was sent to.');
+      const keepUid = user?.isAnonymous && !options.googleAccountExists;
+      setUser({
+        uid: keepUid ? user!.uid : `email-${address}`,
+        displayName: null,
+        email: address,
+        photoURL: null,
+        role: 'student',
+        isAnonymous: false,
+      });
+      pending = null;
+      return true;
+    },
+    pendingEmail: () => pending,
     async signOut() {
       setUser(null);
     },
@@ -74,10 +110,41 @@ export function createMemoryServices(
     },
   };
 
+  const shareStore = new Map<string, Share>();
+  const shares = {
+    async create(input: ProjectInput) {
+      if (!user) throw new NotSignedInError();
+      const error = validateProjectInput(input);
+      if (error) throw new InvalidProjectError(error);
+      const share: Share = {
+        ...structuredClone(input),
+        id: `share-${shareStore.size + 1}`,
+        ownerId: user.uid,
+        createdAt: new Date(),
+      };
+      shareStore.set(share.id, share);
+      return structuredClone(share);
+    },
+    async get(id: string) {
+      const s = shareStore.get(id);
+      return s ? structuredClone(s) : null;
+    },
+    async remove(id: string) {
+      if (shareStore.get(id)?.ownerId === user?.uid) shareStore.delete(id);
+    },
+  };
+
   return {
     auth,
     projects: createMemoryProjectRepository(() => user?.uid ?? null),
     content,
+    shares,
+    classroom: createMemoryClassroom(() => user),
+    telemetry: { record: (event, context) => void events.push({ ...event, ...context }) },
+    /** Recorded telemetry, for tests. */
+    events,
+    /** Sign-in links "emailed", for tests. */
+    sentLinks,
     setUser,
   };
 }

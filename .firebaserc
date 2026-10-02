@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-codetochip"
+    "default": "demo-codetochip",
+    "prod": "codetochip"
   }
 }

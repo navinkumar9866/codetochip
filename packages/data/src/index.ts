@@ -7,5 +7,5 @@ export {
   createMemoryProjectRepository,
   type MemoryServiceOptions,
 } from './memory.ts';
-export { signInWithGoogleKeepingWork } from './upgrade.ts';
+export { signInKeepingWork, signInWithGoogleKeepingWork } from './upgrade.ts';
 export { lazyServices } from './lazy.ts';

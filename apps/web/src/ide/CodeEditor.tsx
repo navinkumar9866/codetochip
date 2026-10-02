@@ -23,11 +23,13 @@ export function CodeEditor({
   onChange,
   diagnostics,
   apiRef,
+  readOnly = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   diagnostics: Diagnostic[];
   apiRef?: RefObject<EditorApi | null>;
+  readOnly?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -46,6 +48,7 @@ export function CodeEditor({
           keymap.of([indentWithTab]),
           cpp(),
           oneDark,
+          EditorState.readOnly.of(readOnly),
           lintGutter(),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());

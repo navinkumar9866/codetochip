@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { boards, flashOptionsFor, getBoard, type BoardManifest } from '@codetochip/boards';
-import { validateProjectInput, type ProjectFile } from '@codetochip/data';
+import { validateProjectInput, type AssignmentRef, type ProjectFile } from '@codetochip/data';
 import { detectTransport, getProtocol, type FlashProgress } from '@codetochip/flasher';
 import { compileOnServer, type CompileOutcome, type CompileProgress } from '../compile/client.ts';
 import { builtinExamples, starterFiles } from '../examples/builtin.ts';
 import { CodeEditor, type EditorApi } from '../ide/CodeEditor.tsx';
+import { ShareButton } from '../ide/ShareButton.tsx';
 import { SymbolBar } from '../ide/SymbolBar.tsx';
 import { useMediaQuery } from '../ide/use-media-query.ts';
 import { useDevice, useDeviceState } from '../ide/device-context.tsx';
 import { SerialMonitor } from '../ide/SerialMonitor.tsx';
 import { useServices } from '../services.tsx';
+import { useTelemetry } from '../telemetry.ts';
 
 interface Draft {
   id: string | null;
   name: string;
   boardId: string;
   files: ProjectFile[];
+  assignment?: AssignmentRef;
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | { error: string };
@@ -24,12 +27,19 @@ type Busy = null | { kind: 'compile'; progress: CompileProgress } | { kind: 'upl
 
 const AUTOSAVE_MS = 1200;
 
+/** Milliseconds since `start`; `stopwatch()` to start. Used only from event handlers. */
+const stopwatch = () => {
+  const start = performance.now();
+  return () => Math.round(performance.now() - start);
+};
+
 export function IdePage() {
   const { projectId } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
-  const { auth, projects, content } = useServices();
+  const { auth, projects, content, classroom } = useServices();
   const device = useDevice();
+  const record = useTelemetry();
   const deviceState = useDeviceState(device);
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -69,7 +79,13 @@ export function IdePage() {
           await auth.ensureUser();
           const p = await projects.get(projectId);
           if (!p) throw new Error('This project doesn’t exist, or belongs to another account.');
-          next = { id: p.id, name: p.name, boardId: p.boardId, files: p.files };
+          next = {
+            id: p.id,
+            name: p.name,
+            boardId: p.boardId,
+            files: p.files,
+            ...(p.assignment && { assignment: p.assignment }),
+          };
         } else {
           const boardId = search.get('board') ?? boards[0]!.id;
           const exampleId = search.get('example');
@@ -176,12 +192,20 @@ export function IdePage() {
     if (built.current?.key === buildKey) return built.current.binary;
     setBusy({ kind: 'compile', progress: { state: 'submitting' } });
     setPanel('output');
+    const elapsed = stopwatch();
+    const compileEvent = { kind: 'compile' as const, board: draft.boardId, mode: modeId };
     try {
       const r = await compileOnServer(
         { board: draft.boardId, mode: modeId, files: draft.files },
         { onProgress: (progress) => setBusy({ kind: 'compile', progress }) },
       );
       setOutcome(r.outcome);
+      record({
+        ...compileEvent,
+        ok: r.outcome.ok,
+        durationMs: elapsed(),
+        cached: !!r.outcome.cached,
+      });
       if (!r.binary) {
         const first = r.outcome.diagnostics.find((d) => d.severity === 'error');
         setMessage({
@@ -199,6 +223,13 @@ export function IdePage() {
       setMessage({ kind: 'success', text: `Compiled: ${r.binary.length.toLocaleString()} bytes.` });
       return r.binary;
     } catch (e) {
+      record({
+        ...compileEvent,
+        ok: false,
+        durationMs: elapsed(),
+        cached: false,
+        error: 'request-failed',
+      });
       setMessage({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
       return null;
     } finally {
@@ -233,6 +264,14 @@ export function IdePage() {
     setBusy({ kind: 'upload' });
     // Android freezes pages (and their workers) when the screen turns off; keep it on.
     const wakeLock = await navigator.wakeLock?.request('screen').catch(() => null);
+    const elapsed = stopwatch();
+    const flashEvent = {
+      kind: 'flash' as const,
+      board: board.id,
+      protocol: board.flash.protocol,
+      transport: detectTransport().kind,
+      bytes: binary.length,
+    };
     try {
       await device.flash(board.flash.protocol, binary, {
         ...flashOptionsFor(board, modeId),
@@ -240,11 +279,32 @@ export function IdePage() {
       });
       setMessage({ kind: 'success', text: 'Uploaded. Your program is running.' });
       show('serial');
+      record({ ...flashEvent, ok: true, durationMs: elapsed() });
     } catch (e) {
+      record({
+        ...flashEvent,
+        ok: false,
+        durationMs: elapsed(),
+        error: e instanceof Error ? e.name : 'Error',
+      });
       setMessage({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     } finally {
       void wakeLock?.release();
       setBusy(null);
+    }
+  };
+
+  const submit = async () => {
+    if (!draft?.assignment) return;
+    setMessage(null);
+    try {
+      await classroom.submit(draft.assignment.classId, draft.assignment.assignmentId, draft.files);
+      setMessage({
+        kind: 'success',
+        text: 'Submitted. Your teacher can see it now. You can submit again later.',
+      });
+    } catch (e) {
+      setMessage({ kind: 'error', text: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -349,6 +409,16 @@ export function IdePage() {
               )}
             </>
           )}
+          {draft.assignment && (
+            <button
+              className="rounded bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+              disabled={!!busy}
+              onClick={() => void submit()}
+            >
+              Submit to class
+            </button>
+          )}
+          <ShareButton project={{ name: draft.name, boardId: draft.boardId, files: draft.files }} />
           <button
             className="rounded px-2 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-40"
             disabled={!!busy}

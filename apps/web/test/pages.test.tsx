@@ -83,6 +83,7 @@ describe('account bar', () => {
     });
     renderAt('/', services);
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in to keep your work' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
     expect(await screen.findByText('Test User')).toBeTruthy();
     expect((await services.projects.listMine()).map((p) => p.name)).toEqual(['Keep me']);
   });

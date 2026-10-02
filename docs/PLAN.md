@@ -314,6 +314,20 @@ export interface ToolchainAdapter {
 
 ## Phase 5 — Platform features
 
+### Phase 5 status (2026-10-02): built against the Firebase emulators (no real project yet)
+
+- **Share and fork:** a read-only snapshot link (`/s/:id`; readable only by id, never listed, immutable, owner deletes) and "Make a copy".
+- **Classroom:**
+  - Teachers (role `teacher`) create classes with a 6-character join code and post assignments with starter code.
+  - Students (Google or email sign-in, not guests) join, Start/Continue, and "Submit to class".
+  - Teachers see members and read-only submissions.
+  - Rules are tested, including forged joins, cross-teacher access and classmates' work.
+- **Roles:** Cloud Functions `setUserRole` (admin only, audit trail, no self-demotion) and `listUsers` (real roles from claims). The admin **Roles** screen uses them.
+- **Telemetry:** anonymous compile/flash events (no user id, no code), on by default with an opt-out on the Help page. Append-only collection, admins read. Admin **Usage** screen shows success rates.
+- **Sign-in:** an email sign-in link in addition to Google. Guests keep their work with either method.
+- **Deferred:** phone OTP (SMS cost, TRAI DLT registration, reCAPTCHA needs a real project).
+- **Hosting:** options and recommendation in ADR 0005 (proposed; Navin to decide).
+
 - More sign-in methods (email magic link, phone OTP); role management UI in the admin backed by a Cloud Function that sets custom claims.
 - Save, share read-only links, fork a shared project.
 - Classroom: teacher creates a class, shares starter projects, sees submissions.

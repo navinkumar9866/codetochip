@@ -8,6 +8,10 @@ export const COLLECTIONS = {
   lessons: 'lessons',
   pages: 'pages',
   settings: 'settings',
+  shares: 'shares',
+  classes: 'classes',
+  classCodes: 'classCodes',
+  telemetry: 'telemetry',
 } as const;
 
 export const ROLES = ['student', 'teacher', 'editor', 'admin'] as const;
@@ -35,6 +39,13 @@ export interface ProjectInput {
   name: string;
   boardId: string;
   files: ProjectFile[];
+  /** Set when the project was started from a class assignment. */
+  assignment?: AssignmentRef;
+}
+
+export interface AssignmentRef {
+  classId: string;
+  assignmentId: string;
 }
 
 export interface Project extends ProjectInput {
@@ -68,6 +79,84 @@ export interface Lesson {
   boardIds: string[];
   published: boolean;
   order: number;
+}
+
+export interface ClassInfo {
+  id: string;
+  name: string;
+  boardId: string;
+  ownerId: string;
+  ownerName: string;
+  /** Students type this to join. Only the teacher and members see it. */
+  joinCode: string;
+}
+
+export interface ClassMember {
+  uid: string;
+  displayName: string;
+  joinedAt: Date;
+}
+
+export interface Assignment {
+  id: string;
+  title: string;
+  instructions: string;
+  boardId: string;
+  files: ProjectFile[];
+  createdAt: Date;
+}
+
+export interface Submission {
+  uid: string;
+  displayName: string;
+  files: ProjectFile[];
+  submittedAt: Date;
+}
+
+/**
+ * Anonymous usage event (no user id, no code, no file names). Used to see which boards,
+ * browsers and phones work, and where uploads fail.
+ */
+export type TelemetryEvent =
+  | {
+      kind: 'compile';
+      board: string;
+      mode: string;
+      ok: boolean;
+      durationMs: number;
+      cached: boolean;
+      /** Infrastructure failure category, if the compile didn't finish. */
+      error?: string;
+    }
+  | {
+      kind: 'flash';
+      board: string;
+      protocol: string;
+      transport: string;
+      ok: boolean;
+      durationMs: number;
+      bytes: number;
+      /** Error class, e.g. CancelledError, DisconnectedError, ProtocolError. */
+      error?: string;
+    };
+
+/** Added to every event: rough environment only. */
+export interface TelemetryContext {
+  os: string;
+  browser: string;
+  mobile: boolean;
+  app: string;
+}
+
+/** Unambiguous characters (no 0/O, 1/I/L) so codes survive being written on a board. */
+export const JOIN_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+export const JOIN_CODE_LENGTH = 6;
+
+/** A read-only snapshot of a project, opened by link (/s/:id). Never updated after creation. */
+export interface Share extends ProjectInput {
+  id: string;
+  ownerId: string;
+  createdAt: Date;
 }
 
 export interface Page {

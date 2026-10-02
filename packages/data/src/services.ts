@@ -1,4 +1,17 @@
-import type { Example, Project, ProjectInput, Role } from './schema.ts';
+import type {
+  Assignment,
+  ClassInfo,
+  ClassMember,
+  Example,
+  Project,
+  ProjectFile,
+  ProjectInput,
+  Role,
+  Share,
+  Submission,
+  TelemetryContext,
+  TelemetryEvent,
+} from './schema.ts';
 
 export interface AppUser {
   uid: string;
@@ -21,6 +34,15 @@ export interface AuthService {
    * Google account already exists, the user is signed into it instead (uid changes).
    */
   signInWithGoogle(): Promise<void>;
+  /** Emails a sign-in link that comes back to `returnUrl`. */
+  sendEmailLink(email: string, returnUrl: string): Promise<void>;
+  /**
+   * If `url` is a sign-in link, finishes signing in and returns true. `email` is needed when
+   * the link is opened on a different device from the one that asked for it.
+   */
+  completeEmailLink(url: string, email?: string): Promise<boolean>;
+  /** The email a link was sent to from this device, if any. */
+  pendingEmail(): string | null;
   signOut(): Promise<void>;
 }
 
@@ -39,10 +61,52 @@ export interface ProjectRepository {
   remove(id: string): Promise<void>;
 }
 
+/** Read-only share links. Anyone with the link can read; only the owner can delete. */
+export interface ShareRepository {
+  /** Snapshots the sources; requires a signed-in user (guests are fine). */
+  create(input: ProjectInput): Promise<Share>;
+  get(id: string): Promise<Share | null>;
+  remove(id: string): Promise<void>;
+}
+
+/** Classes, assignments and submissions. Teachers need the teacher (or admin) role. */
+export interface ClassroomRepository {
+  // Teachers
+  createClass(input: { name: string; boardId: string }): Promise<ClassInfo>;
+  teachingClasses(): Promise<ClassInfo[]>;
+  members(classId: string): Promise<ClassMember[]>;
+  createAssignment(
+    classId: string,
+    input: { title: string; instructions: string; boardId: string; files: ProjectFile[] },
+  ): Promise<Assignment>;
+  submissions(classId: string, assignmentId: string): Promise<Submission[]>;
+  // Students
+  /** Throws an actionable error for an unknown code. Needs a signed-in (not guest) user. */
+  joinClass(code: string): Promise<ClassInfo>;
+  joinedClasses(): Promise<ClassInfo[]>;
+  submit(classId: string, assignmentId: string, files: ProjectFile[]): Promise<void>;
+  mySubmission(classId: string, assignmentId: string): Promise<Submission | null>;
+  // Both
+  getClass(classId: string): Promise<ClassInfo | null>;
+  assignments(classId: string): Promise<Assignment[]>;
+}
+
+export class ClassroomError extends Error {
+  override name = 'ClassroomError';
+}
+
+/** Fire-and-forget usage events; never throws, never blocks the UI. */
+export interface TelemetrySink {
+  record(event: TelemetryEvent, context: TelemetryContext): void;
+}
+
 export interface AppServices {
   auth: AuthService;
   projects: ProjectRepository;
   content: ContentRepository;
+  shares: ShareRepository;
+  classroom: ClassroomRepository;
+  telemetry: TelemetrySink;
 }
 
 export class NotSignedInError extends Error {

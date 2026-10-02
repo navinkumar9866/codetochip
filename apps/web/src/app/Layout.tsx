@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router';
 import { detectTransport } from '@codetochip/flasher';
 import { AccountBar } from '../account/AccountBar.tsx';
+import { EmailLinkHandler } from '../account/EmailLinkHandler.tsx';
 import { useCurrentUser } from '../services.tsx';
 
 export function Layout() {
@@ -18,6 +19,9 @@ export function Layout() {
           <NavLink to="/" end className={nav}>
             Home
           </NavLink>
+          <NavLink to="/classes" className={nav}>
+            Classes
+          </NavLink>
           <NavLink to="/help" className={nav}>
             Help
           </NavLink>
@@ -34,6 +38,7 @@ export function Layout() {
           </Link>
         </p>
       )}
+      <EmailLinkHandler />
       <main className="flex min-h-0 flex-1 flex-col">
         <Outlet />
       </main>

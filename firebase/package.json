@@ -7,7 +7,7 @@
   "description": "Firestore/Storage security rules, their emulator tests, and dev scripts (seed, set-role).",
   "scripts": {
     "dev": "firebase emulators:start --project demo-codetochip",
-    "test": "firebase emulators:exec --project demo-codetochip --only firestore,storage 'vitest run'",
+    "test": "pnpm --filter @codetochip/functions build && FUNCTIONS_EMULATOR_PORT=5001 firebase emulators:exec --project demo-codetochip --only firestore,storage,auth,functions 'vitest run'",
     "seed": "tsx scripts/seed.ts",
     "set-role": "tsx scripts/set-role.ts",
     "typecheck": "tsc -p ."

@@ -34,6 +34,9 @@ export function lazyServices(load: () => Promise<AppServices>): AppServices & {
       currentUser: () => real?.auth.currentUser() ?? null,
       ensureUser: later((s) => s.auth.ensureUser),
       signInWithGoogle: later((s) => s.auth.signInWithGoogle),
+      sendEmailLink: later((s) => s.auth.sendEmailLink),
+      completeEmailLink: later((s) => s.auth.completeEmailLink),
+      pendingEmail: () => real?.auth.pendingEmail() ?? null,
       signOut: later((s) => s.auth.signOut),
     },
     projects: {
@@ -45,6 +48,27 @@ export function lazyServices(load: () => Promise<AppServices>): AppServices & {
     },
     content: {
       listExamples: later((s) => s.content.listExamples),
+    },
+    shares: {
+      create: later((s) => s.shares.create),
+      get: later((s) => s.shares.get),
+      remove: later((s) => s.shares.remove),
+    },
+    telemetry: {
+      record: (event, context) => void ready.then((s) => s.telemetry.record(event, context)),
+    },
+    classroom: {
+      createClass: later((s) => s.classroom.createClass),
+      teachingClasses: later((s) => s.classroom.teachingClasses),
+      members: later((s) => s.classroom.members),
+      createAssignment: later((s) => s.classroom.createAssignment),
+      submissions: later((s) => s.classroom.submissions),
+      joinClass: later((s) => s.classroom.joinClass),
+      joinedClasses: later((s) => s.classroom.joinedClasses),
+      submit: later((s) => s.classroom.submit),
+      mySubmission: later((s) => s.classroom.mySubmission),
+      getClass: later((s) => s.classroom.getClass),
+      assignments: later((s) => s.classroom.assignments),
     },
   };
 }

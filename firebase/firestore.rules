@@ -15,6 +15,9 @@ service cloud.firestore {
     function isEditor() {
       return signedIn() && role() in ['editor', 'admin'];
     }
+    function isTeacher() {
+      return signedIn() && role() in ['teacher', 'admin'];
+    }
     function isAdmin() {
       return signedIn() && role() == 'admin';
     }
@@ -34,7 +37,10 @@ service cloud.firestore {
       }
       function validProject() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['ownerId', 'name', 'boardId', 'files', 'createdAt', 'updatedAt'])
+        return d.keys().hasOnly(['ownerId', 'name', 'boardId', 'files', 'createdAt', 'updatedAt', 'assignment'])
+          && (!('assignment' in d) || (d.assignment is map
+            && d.assignment.keys().hasOnly(['classId', 'assignmentId'])
+            && d.assignment.classId is string && d.assignment.assignmentId is string))
           && d.ownerId == request.auth.uid
           && d.name is string && d.name.size() > 0 && d.name.size() <= 100
           && d.boardId is string && d.boardId.size() <= 64
@@ -66,6 +72,130 @@ service cloud.firestore {
     match /pages/{id} {
       allow read: if resource.data.published == true || isEditor();
       allow write: if isEditor();
+    }
+
+    // Read-only share links: snapshots, opened by their random id. No listing (so nobody can
+    // browse other people's code), no updates, only the owner deletes.
+    match /shares/{id} {
+      allow get: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['ownerId', 'name', 'boardId', 'files', 'createdAt'])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.boardId is string && request.resource.data.boardId.size() <= 64
+        && request.resource.data.files is list && request.resource.data.files.size() >= 1
+        && request.resource.data.files.size() <= 32
+        && request.resource.data.createdAt == request.time;
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Classes. Teachers (role teacher/admin) own classes; students join with the code.
+    match /classes/{classId} {
+      function cls() {
+        return get(/databases/$(database)/documents/classes/$(classId)).data;
+      }
+      function owns() {
+        return signedIn() && cls().ownerId == request.auth.uid;
+      }
+      function member() {
+        return signedIn()
+          && exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid));
+      }
+      function validClass(d) {
+        return d.keys().hasOnly(['name', 'boardId', 'ownerId', 'ownerName', 'joinCode', 'createdAt'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+          && d.boardId is string && d.ownerName is string
+          && d.joinCode is string && d.joinCode.size() == 6;
+      }
+
+      allow get: if signedIn() && (resource.data.ownerId == request.auth.uid || member());
+      allow list: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isTeacher() && request.resource.data.ownerId == request.auth.uid
+        && validClass(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if owns() && validClass(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']);
+      allow delete: if owns();
+
+      match /members/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || owns());
+        allow list: if owns();
+        // Joining needs the class's code, and a real (non-guest) account so teachers see names.
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.auth.token.firebase.sign_in_provider != 'anonymous'
+          && request.resource.data.keys().hasOnly(['uid', 'displayName', 'joinedAt', 'code'])
+          && request.resource.data.uid == uid
+          && request.resource.data.displayName is string && request.resource.data.displayName.size() > 0
+          && request.resource.data.code == cls().joinCode
+          && request.resource.data.joinedAt == request.time;
+        allow delete: if owns() || (signedIn() && request.auth.uid == uid);
+      }
+
+      match /assignments/{assignmentId} {
+        allow read: if owns() || member();
+        allow create, update: if owns()
+          && request.resource.data.keys().hasOnly(['title', 'instructions', 'boardId', 'files', 'createdAt'])
+          && request.resource.data.title is string && request.resource.data.title.size() > 0
+          && request.resource.data.title.size() <= 200
+          && request.resource.data.files is list && request.resource.data.files.size() <= 32;
+        allow delete: if owns();
+
+        match /submissions/{uid} {
+          allow get: if owns() || (signedIn() && request.auth.uid == uid);
+          allow list: if owns();
+          allow create, update: if signedIn() && request.auth.uid == uid && member()
+            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'files', 'submittedAt'])
+            && request.resource.data.uid == uid
+            && request.resource.data.files is list && request.resource.data.files.size() >= 1
+            && request.resource.data.files.size() <= 32
+            && request.resource.data.submittedAt == request.time;
+        }
+      }
+    }
+
+    // A student's own memberships, to list "classes I'm in".
+    match /{path=**}/members/{uid} {
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // Join code → class id. Created with the class; codes can't be reused or browsed.
+    match /classCodes/{code} {
+      allow get: if signedIn();
+      allow create: if isTeacher() && request.resource.data.keys().hasOnly(['classId'])
+        && getAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.joinCode == code;
+      allow delete: if signedIn()
+        && get(/databases/$(database)/documents/classes/$(resource.data.classId)).data.ownerId == request.auth.uid;
+    }
+
+    // Role audit trail, written only by the setUserRole Cloud Function (Admin SDK).
+    match /roles/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if false;
+    }
+
+    // Anonymous usage events: anyone may append a small, well-formed event; only admins read.
+    match /telemetry/{id} {
+      function str(v, max) {
+        return v is string && v.size() <= max;
+      }
+      function common(d) {
+        return str(d.board, 64) && d.ok is bool && d.durationMs is number
+          && d.durationMs >= 0 && d.durationMs < 3600000
+          && str(d.os, 32) && str(d.browser, 32) && d.mobile is bool && str(d.app, 32)
+          && d.at == request.time
+          && (!('error' in d) || str(d.error, 64));
+      }
+      allow create: if common(request.resource.data) && (
+        (request.resource.data.kind == 'compile'
+          && request.resource.data.keys().hasOnly(['kind', 'board', 'mode', 'ok', 'durationMs', 'cached', 'error', 'os', 'browser', 'mobile', 'app', 'at'])
+          && str(request.resource.data.mode, 32) && request.resource.data.cached is bool)
+        || (request.resource.data.kind == 'flash'
+          && request.resource.data.keys().hasOnly(['kind', 'board', 'protocol', 'transport', 'ok', 'durationMs', 'bytes', 'error', 'os', 'browser', 'mobile', 'app', 'at'])
+          && str(request.resource.data.protocol, 32) && str(request.resource.data.transport, 32)
+          && request.resource.data.bytes is int && request.resource.data.bytes >= 0));
+      allow read: if isAdmin();
+      allow update, delete: if false;
     }
 
     // Site-wide settings (announcement banner, maintenance mode). Readable by all.
