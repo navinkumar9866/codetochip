@@ -1,4 +1,4 @@
-import { ProtocolError } from '../errors.ts';
+import { CancelledError, ProtocolError } from '../errors.ts';
 import { ByteStream } from '../io/byte-stream.ts';
 import type { Transport } from '../types.ts';
 import { crc16Xmodem } from './crc16-xmodem.ts';
@@ -90,7 +90,10 @@ export async function xmodemSend(
     await sendWithRetries(new Uint8Array([EOT]), 'end of transfer');
     if (afterEot) await transport.write(afterEot);
   } catch (e) {
-    if (signal?.aborted) await cancel();
+    if (signal?.aborted) {
+      await cancel();
+      throw new CancelledError();
+    }
     throw e;
   } finally {
     await stream.close();

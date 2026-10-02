@@ -67,13 +67,24 @@ Each phase lists goals, tasks, acceptance criteria, and **HARDWARE GATES**. At a
 
 ### HARDWARE GATE 0
 
+**Desktop findings (2026-10-02, macOS 26.4, Chrome 154, ARIES v3 via CP2102N):**
+
+- **Bootloader:** ROM bootloader v1.0.0 (Dec 2020). Banner says `IRAM: [0x200000 - 0x23E7FF] [250 KB]` and "Please send file using XMODEM and then press ENTER key." After `\r` it prints "Starting program ..." and runs the image.
+- **Handshake:**
+  - While waiting, the bootloader sends a lone `C` every **190 ms**, indefinitely.
+  - The first `C` arrives **in the same USB chunk as the end of the banner** (`"ENTER key.\n\r C"`), so "a chunk that is exactly `C`" would miss it. We detect a `C` followed by ≥50 ms of silence instead.
+- **Transfer:** 128-byte blocks ACKed in ~15 ms each (4.4 KB in 0.5 s), with no NAKs in any run.
+- **Cancel:** after `CAN CAN` the bootloader goes **silent**. It does not resume sending `C`, so the user must press RESET. The next upload then works normally.
+- **Stray bytes:** we saw one `0xFF` when the port opened, and one `0x19` between "Starting program" and the program's first output. Parsers must tolerate both.
+- **Opening the port** does not reset the board.
+
 Navin tests and reports:
 
-- [ ] Banner received on desktop Chrome (Windows, and macOS/Linux if available). Record any driver install needed.
-- [ ] Does DTR/RTS reset the board? Which combination?
-- [ ] Blink uploaded to RAM and running from desktop.
+- [x] Banner received on desktop Chrome. **macOS 26.4 + Chrome 154 (2026-10-02): works, no driver install** (Apple's built-in `AppleUSBSLCOM`). Windows/Linux still to test.
+- [x] Does DTR/RTS reset the board? **No.** DTR low, RTS low, both low, both high: no reset (transcript `aries-v3-reset-experiments-dtr-rts.json`). Desktop flow = "Press RESET". Bridge-GPIO reset still to try on Android.
+- [x] Blink uploaded to RAM and running from desktop (green LED blinks); hello-serial prints over serial.
 - [ ] Blink uploaded from at least one Android phone via OTG. Record phone model, Android version, and whether the phone powers the board.
-- [ ] Transcripts recorded: boot banner, successful upload, a failed/aborted upload, and (if possible) persistent flash mode.
+- [ ] Transcripts recorded: ~~boot banner~~ (inside `upload-ram-blink-manual-reset`), ~~successful upload~~, ~~failed/aborted upload~~ (`upload-ram-cancelled-midway`, `upload-ram-recover-after-cancel`); persistent flash mode still to do.
 - [ ] How persistent flash mode works in practice: jumper position, where `flasher.bin` comes from, and its licence.
 
 **Exit:** all three spikes work, or we have written up what blocks them and decided a fallback.
@@ -345,10 +356,10 @@ MVP compiles on the server (Phase 2). Later, add an optional offline mode that c
 
 ## Open questions (Claude Code: add here, don't guess)
 
-1. Can DTR/RTS reset ARIES v3? (Gate 0) — _0.2 lead:_ VEGA's own Linux `reset` tool toggles a GPIO line through `/dev/gpiochip` (libgpiod), which suggests RESET is wired to a **CP2102N GPIO**, not DTR/RTS. Web Serial can't drive CP210x GPIOs; WebUSB could. Hypothesis only; test at Gate 0.
+1. Can DTR/RTS reset ARIES v3? **Answered for desktop: no** (Gate 0, 2026-10-02); UI must ask the user to press RESET. Still open: does a CP2102N GPIO (WebUSB/Android) reset it? VEGA's Linux `reset` tool uses `/dev/gpiochip`.
 2. Exact persistent-flash procedure and prompts; source and licence of `flasher.bin`. (Gate 0) — _0.2 lead:_ the helper is `bootloaders/flasher_arduino.bin` in the VEGA core, written by the core's "BootBurn" programmer over plain XMODEM. Flash builds use `link1.lds` (origin `0x202000`, leaving 8 KB for the helper). VEGA's flash uploader is the same XMODEM sender as the RAM one, plus printing serial output afterwards. Hypothesis: burn the helper once (BOOT SEL = boot from flash), then each upload is a normal XMODEM transfer of a `serialMethod` build that the helper writes to flash. No licence is stated for the helper. Confirm the steps and prompts at Gate 0.
 3. ~~Does the VEGA Arduino core output a `.bin` directly?~~ **Answered (0.2): yes**, `<sketch>.ino.bin`. See ADR 0003.
-4. Does macOS need a CP210x driver install for Web Serial? (Gate 3)
+4. ~~Does macOS need a CP210x driver install for Web Serial?~~ **Answered: no** on macOS 26.4 (built-in `AppleUSBSLCOM`). Re-check older macOS at Gate 3.
 5. Which Android phones fail to power the board over OTG? (Gate 4)
 6. Licences: VEGA Arduino core, VEGA SDK, vegadude, `flasher.bin`. OK to redistribute in our Docker image? — _0.2:_ the core has no top-level licence file; its sources carry GPL and LGPL headers. `flasher_arduino.bin` and the VEGA upload tools state no licence. We install the core from the public index at image build time and never commit compiled binaries. Navin to confirm with C-DAC before we serve `flasher_arduino.bin` from our site.
 7. Completeness of THEJAS32 register-level documentation for the simulator. (Before Phase 6)

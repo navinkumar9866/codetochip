@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DisconnectedError, ProtocolError } from '../src/errors.ts';
+import { CancelledError, DisconnectedError, ProtocolError } from '../src/errors.ts';
 import { xmodemSend, type XmodemOptions } from '../src/protocols/xmodem.ts';
 import { createVegaBootloader, sleep } from './helpers/fake-device.ts';
 
@@ -35,6 +35,22 @@ describe('xmodemSend', () => {
     expect(boot.state.received).toEqual(padded(img));
     expect(boot.state.jumped).toBe(true);
     expect(progress.at(-1)).toBe(300);
+  });
+
+  it('finds the handshake C when it arrives in the same chunk as the banner (seen on real ARIES)', async () => {
+    const boot = createVegaBootloader();
+    const sending = xmodemSend(boot.device.transport, image(200), fast);
+    // Exact chunks from aries-v3-upload-ram-blink-manual-reset.json: "C-DAC" in the banner,
+    // then the first handshake C glued to the end of the last banner line.
+    boot.device.send(' | VEGA Series of Microprocessors Developed By C-DAC, INDIA |\n\r');
+    await sleep(5);
+    boot.state.handshakeSent = true;
+    boot.device.send(
+      '7FF] [250 KB]\n\r \n\r Please send file using XMODEM and then press ENTER key.\n\r C',
+    );
+    await sending;
+    expect(boot.state.packetBeforeHandshake).toBe(false);
+    expect(boot.state.received).toEqual(padded(image(200)));
   });
 
   it('retries a block the device NAKs', async () => {
@@ -116,7 +132,7 @@ describe('xmodemSend', () => {
       },
       controller.signal,
     );
-    const outcome = expect(sending).rejects.toThrow();
+    const outcome = expect(sending).rejects.toBeInstanceOf(CancelledError);
     await boot.boot();
     await outcome;
     expect(boot.state.cancelledByHost).toBe(true);

@@ -24,6 +24,7 @@ Open **http://localhost:5173/spike/flash** in Chrome or Edge. The BOOT SEL jumpe
 ## 1. Desktop: banner and reset
 
 1. **Connect.** Plug in the board, click **Connect** (Web Serial), and pick the CP2102N port.
+   - macOS: no driver needed. macOS includes Apple's CP210x driver (`AppleUSBSLCOM`); the board appears as `/dev/cu.usbserial-*`. If no port appears, try another cable (many are charge-only) before installing anything, and record it.
    - Windows: if no port appears, install the Silicon Labs CP210x VCP driver. Record that you needed it.
 2. **Record the banner.** Set the recorder scenario to `boot-banner`, then **Start recording** and press **RESET** on the board.
    - Expect the banner in the console, then a lone `C` (hex `43`) every second or so.

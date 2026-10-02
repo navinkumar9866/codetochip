@@ -88,6 +88,9 @@ export default function SpikeFlash() {
       } catch (e) {
         fail(e);
         setConnected(false);
+      } finally {
+        // Without this, a reconnect after an unplug would never start reading again.
+        if (monitor.current === it) monitor.current = null;
       }
     })();
   };
@@ -98,6 +101,8 @@ export default function SpikeFlash() {
   };
 
   const connect = async () => {
+    await stopMonitor();
+    await inner.current?.close().catch(() => {});
     try {
       let transport: Transport;
       if (via === 'webserial') {
@@ -238,9 +243,9 @@ export default function SpikeFlash() {
     }
   };
 
-  const download = () => {
+  const currentTranscript = () => {
     const r = rec.current;
-    if (!r) return;
+    if (!r) return null;
     const transcript = r.toTranscript({
       board: board.id,
       transport: inner.current?.kind ?? 'unknown',
@@ -250,12 +255,36 @@ export default function SpikeFlash() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
-    const blob = new Blob([JSON.stringify(transcript, null, 2)], { type: 'application/json' });
+    return { transcript, filename: `${board.id}-${slug || 'transcript'}.json` };
+  };
+
+  const download = () => {
+    const t = currentTranscript();
+    if (!t) return;
+    const blob = new Blob([JSON.stringify(t.transcript, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${board.id}-${slug || 'transcript'}.json`;
+    a.download = t.filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  };
+
+  /** Dev server only: writes into packages/test-fixtures/transcripts/ (see vite.config.ts). */
+  const saveToRepo = async () => {
+    const t = currentTranscript();
+    if (!t) return;
+    try {
+      const res = await fetch(`/__spike/transcripts/${t.filename}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(t.transcript),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text);
+      log('note', `${text} (${t.transcript.entries.length} entries)`);
+    } catch (e) {
+      fail(e);
+    }
   };
 
   const btn = 'rounded-md bg-slate-800 px-3 py-1.5 text-sm disabled:opacity-40';
@@ -476,6 +505,15 @@ export default function SpikeFlash() {
           <button className={btn} disabled={!connected || recording} onClick={download}>
             Download JSON
           </button>
+          {import.meta.env.DEV && (
+            <button
+              className={btn}
+              disabled={!connected || recording}
+              onClick={() => void saveToRepo()}
+            >
+              Save to repo
+            </button>
+          )}
           <input
             className="w-40 rounded-md bg-slate-800 px-2 py-1.5"
             value={note}

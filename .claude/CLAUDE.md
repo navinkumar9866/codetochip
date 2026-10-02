@@ -41,9 +41,10 @@ docs/                PLAN.md, decisions (ADRs), hardware test matrix
 - Arduino board package index: `https://gitlab.com/riscv-vega/vega-arduino/-/raw/main/package_vega_index.json`, FQBN `vega:riscv:aries_v3`.
 - BOOT SEL jumper (J12) open = upload over UART to RAM (lost on power-off). Closed = boot from SPI flash. Persistent flashing uses a `flasher.bin` helper sent over XMODEM first.
 - **Bootloader quirks (must handle):**
-  - The handshake is a read that is a _lone_ `C`. The boot banner contains "C-DAC", "CPU" etc., so matching any `C` starts the transfer too early.
+  - The handshake is a **lone** `C` (sent every 190 ms while waiting). The banner contains "C-DAC", "CPU" etc., and the first real `C` arrives in the same USB chunk as the banner's last line, so detect a `C` followed by silence (≥50 ms), not "a chunk that is exactly C" (verified at Gate 0).
   - After EOT is ACKed, send `\r` (ENTER). Without it, the bootloader never jumps to the program.
-- Unknown until tested: whether DTR/RTS can reset the board. If not, the UI prompts "Press RESET on the board".
+- DTR/RTS do **not** reset the board (Gate 0). The desktop UI must prompt "Press RESET on the board". A CP2102N-GPIO reset over WebUSB is still untested.
+- After a cancelled transfer (`CAN CAN`) the bootloader goes silent until RESET.
 
 ## Onboarding a new board
 
