@@ -17,7 +17,7 @@ You get four files:
 | ------------------------------- | ---------------------------------------------------------- |
 | `aries-v3-ram/blink.bin`        | Blinks the on-board LED, run from RAM                      |
 | `aries-v3-ram/hello-serial.bin` | Prints a counter every second at 115200 baud, run from RAM |
-| `aries-v3-flash/*.bin`          | The same two programs, built for flash (`link1.lds`)       |
+| `aries-v3-persistent/*.bin`     | The same two programs, built for flash (`link1.lds`)       |
 
 Open **http://localhost:5173/spike/flash** in Chrome or Edge. The BOOT SEL jumper (J12) must be **open** for RAM uploads.
 
@@ -67,7 +67,7 @@ This is a hypothesis from reading the VEGA core (open question 2):
 
 1. **Find the helper.** The flash helper is `flasher_arduino.bin` in the VEGA core: `~/.arduino15/packages/vega/hardware/riscv/1.1.3/bootloaders/` if you have the Arduino IDE.
 2. **Check the official procedure.** In the Arduino IDE, "Burn Bootloader" with programmer "BootBurn" sends it over XMODEM. What jumper position does C-DAC's guide say to use for each step?
-3. **Try it in the spike page.** Upload `flasher_arduino.bin` (RAM mode), then upload `aries-v3-flash/hello-serial.bin`, with recording on (scenario `persistent-flash`).
+3. **Try it in the spike page.** Upload `flasher_arduino.bin` (RAM mode), then upload `aries-v3-persistent/hello-serial.bin`, with recording on (scenario `persistent-flash`).
 4. **Check it survived.** Power-cycle with BOOT SEL **closed**. Does hello-serial run?
 
 Please don't spend long here. Tell me what C-DAC's documentation says, and I'll build it properly in Phase 1.3.

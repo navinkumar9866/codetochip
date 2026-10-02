@@ -61,7 +61,9 @@ Follow the checklist in `docs/PLAN.md` → "Board onboarding kit". A board is do
 - `pnpm test` runs Vitest across packages; `pnpm test:rules` runs rules + data-layer tests in the emulators
 - `pnpm test:e2e` runs Playwright (web, with mocked serial)
 - `pnpm lint` / `pnpm typecheck` / `pnpm format`
-- `docker compose up` runs Redis and the compiler API (worker added in Phase 0.2)
+- `docker compose up` runs Redis, the compile API and one compile worker (build the toolchain image first)
+- `pnpm worker:build` builds the toolchain image from the board manifests; `pnpm fixtures:compile` builds the test sketches for every board mode
+- `pnpm --filter @codetochip/compiler test:docker` / `test:redis` / `load-test` need real Docker or Redis (skipped in `pnpm test`)
 
 ## Working agreements
 

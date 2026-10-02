@@ -1,4 +1,5 @@
-# Local stack. The arduino-cli worker service is added in Phase 0.2.
+# Local stack: Redis, the compile API, and one compile worker.
+# Build the toolchain image first: pnpm worker:build
 services:
   redis:
     image: redis:7-alpine
@@ -11,7 +12,27 @@ services:
       dockerfile: services/compiler/Dockerfile
     environment:
       REDIS_URL: redis://redis:6379
+      ROLE: api
+      # Raise for load tests from one machine: COMPILES_PER_MINUTE=1000 docker compose up -d
+      COMPILES_PER_MINUTE: ${COMPILES_PER_MINUTE:-30}
     ports:
       - '3001:3001'
+    depends_on:
+      - redis
+
+  compiler-worker:
+    build:
+      context: .
+      dockerfile: services/compiler/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379
+      ROLE: worker
+      WORKER_CONCURRENCY: '4'
+    # The worker starts sandbox containers through the host's Docker daemon. Access to the
+    # socket is equivalent to root on the host, so in production workers run on dedicated
+    # hosts with gVisor (SANDBOX_RUNTIME=runsc) and nothing else (ADR 0004).
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - redis

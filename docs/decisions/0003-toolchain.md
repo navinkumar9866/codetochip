@@ -45,3 +45,5 @@ Peak memory for a full core build under emulation was ~741 MB, so the 512 MB lim
 - **Production workers need x86-64 hosts,** which is fine on Cloud Run or typical VMs.
 - **gVisor (`--runtime=runsc`)** isn't available on Docker Desktop. Verify it in Phase 2 on a Linux host.
 - **Licences:** compiled binaries statically include the core's LGPL Arduino code, and the core's files are a mix of GPL and LGPL. We don't commit compiled binaries (`packages/test-fixtures/build/` is git-ignored). Serving user-compiled binaries back to the same user is normal Arduino usage, but redistributing `flasher_arduino.bin` (no licence stated) needs Navin's check. See open question 6.
+
+> **Update (Phase 2, ADR 0004):** `sandbox-run.sh` and `compile-fixtures.sh` were replaced by `sandboxArgs()` in `services/compiler/src/toolchains/arduino-cli.ts` and `pnpm fixtures:compile`. `PREBUILD_FQBNS`, `CORES` and index URLs now come from the board manifests via `pnpm worker:build`.

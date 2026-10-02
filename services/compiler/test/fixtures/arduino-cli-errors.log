@@ -1,0 +1,15 @@
+/work/broken/broken.ino: In function 'void setup()':
+/work/broken/broken.ino:2:31: error: expected ';' before '}' token
+    2 |   pinMode(LED_BUILTIN, OUTPUT)
+      |                               ^
+      |                               ;
+    3 | }
+      | ~                              
+/work/broken/broken.ino: In function 'void loop()':
+/work/broken/broken.ino:6:3: error: 'undefinedThing' was not declared in this scope
+    6 |   undefinedThing();
+      |   ^~~~~~~~~~~~~~
+
+[92mUsed platform[0m [92mVersion[0m [90mPath[0m
+[93mvega:riscv[0m    1.1.3   [90m/opt/arduino/data/packages/vega/hardware/riscv/1.1.3[0m
+Error during build: exit status 1

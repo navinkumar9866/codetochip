@@ -7,3 +7,5 @@ allowBuilds:
   esbuild: true
   '@firebase/util': false
   protobufjs: false
+  # Optional native speed-up for BullMQ's msgpack; the JS fallback is fine.
+  msgpackr-extract: false

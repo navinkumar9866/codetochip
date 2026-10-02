@@ -5,17 +5,17 @@
 # The VEGA toolchain ships only x86-64 Linux binaries, so this image is linux/amd64.
 # On Apple Silicon it runs under emulation (slower; see ADR 0003 for timings).
 #
-# Build from the repo root:
-#   docker build --platform linux/amd64 -t codetochip/worker-arduino-vega services/compiler/workers/arduino-cli
+# Build with `pnpm worker:build`, which passes the board list from packages/boards
+# (services/compiler/scripts/worker-build.ts). No board names live in this file.
 
 FROM debian:bookworm-slim
 
 ARG ARDUINO_CLI_VERSION=1.5.1
 ARG ARDUINO_CLI_SHA256=28a8e119c498a25607821c36cb2dc49e8463941b261a0d99091baa7bc692dd2b
-# Board package indexes and cores to bake in. Adding a board family = one more index/core here
-# (or one more image per family; see ADR 0003).
-ARG BOARD_INDEX_URLS=https://gitlab.com/riscv-vega/vega-arduino/-/raw/main/package_vega_index.json
-ARG CORES="vega:riscv@1.1.3"
+# From the manifests: package index URLs, cores (name@version) and every board variant's FQBN.
+ARG BOARD_INDEX_URLS
+ARG CORES
+ARG PREBUILD_FQBNS
 
 ENV ARDUINO_DIRECTORIES_DATA=/opt/arduino/data \
     ARDUINO_DIRECTORIES_DOWNLOADS=/opt/arduino/staging \
@@ -52,9 +52,9 @@ RUN apt-get update \
 
 # Prebuild each board variant's core once, so a job only compiles the sketch (~1 s instead of a
 # full core build). Jobs copy this into their tmpfs cache (see sandbox-run.sh). Phase 2 generates
-# this list from the board manifests; FQBN options change the core build, so each variant is listed.
-ARG PREBUILD_FQBNS="vega:riscv:aries_v3:upload_method=xmodemMethod vega:riscv:aries_v3:upload_method=serialMethod"
-RUN mkdir -p /tmp/prebuild/prebuild \
+# FQBN options change the core build, so each board variant is prebuilt.
+RUN test -n "${CORES}" && test -n "${PREBUILD_FQBNS}" \
+ && mkdir -p /tmp/prebuild/prebuild \
  && printf 'void setup() {}\nvoid loop() {}\n' > /tmp/prebuild/prebuild/prebuild.ino \
  && for fqbn in ${PREBUILD_FQBNS}; do \
       ARDUINO_BUILD_CACHE_PATH=/opt/arduino/core-cache arduino-cli compile --fqbn "$fqbn" /tmp/prebuild/prebuild; \

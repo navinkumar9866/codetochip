@@ -8,7 +8,12 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test:docker": "DOCKER_TESTS=1 vitest run --root ../.. --project node services/compiler/test/sandbox.docker.test.ts",
+    "test:redis": "vitest run --root ../.. --project node services/compiler/test/redis.redis.test.ts",
+    "worker:build": "tsx scripts/worker-build.ts",
+    "fixtures:compile": "tsx scripts/compile-fixtures.ts",
+    "load-test": "tsx scripts/load-test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
@@ -16,6 +21,10 @@
   },
   "dependencies": {
     "@codetochip/boards": "workspace:*",
-    "fastify": "^5.12.5"
+    "@codetochip/data": "workspace:*",
+    "@fastify/rate-limit": "^11.2.0",
+    "bullmq": "^6.3.11",
+    "fastify": "^5.12.5",
+    "ioredis": "^6.0.0"
   }
 }

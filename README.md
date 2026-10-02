@@ -35,7 +35,8 @@ pnpm seed         # second terminal: demo content + test users (admin, editor, s
 | `pnpm test:e2e`                                | Playwright (run `pnpm --filter @codetochip/web exec playwright install chromium` once first) |
 | `pnpm set-role <email> <role>`                 | Give a user `student`, `teacher`, `editor` or `admin`                                        |
 | `pnpm lint` / `pnpm typecheck` / `pnpm format` | Checks and formatting                                                                        |
-| `docker compose up`                            | Redis + compile API                                                                          |
+| `docker compose up`                            | Redis + compile API + compile worker (run `pnpm worker:build` first)                         |
+| `pnpm worker:build` / `pnpm fixtures:compile`  | Build the toolchain image from the manifests / compile test sketches                         |
 
 Emulator UI: http://localhost:4000. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 

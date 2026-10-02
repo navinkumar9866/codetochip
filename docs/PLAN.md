@@ -186,6 +186,19 @@ export interface Protocol {
 
 ## Phase 2 — Compiler service
 
+### Phase 2 status (2026-10-02): done (see ADR 0004)
+
+- **API:** compile, status with queue position, artifact download (1-hour expiry), boards.
+- **Validation:** limits shared with saved projects, plus include and `.incbin` checks.
+- **Queue:** BullMQ on Redis with separate API and worker roles, or in-memory for development.
+- **Speed:** result cache and per-IP rate limit.
+- **Toolchain:** `ToolchainAdapter` with an arduino-cli sandbox (one container per job). The worker image is built from the manifests.
+- **Acceptance:**
+  - Warm Blink ~2 s end to end.
+  - Sandbox probes pass: no network, read-only, `/etc/passwd` via include is the container's own file only, fork bomb contained.
+  - 60 concurrent compiles with 0 failures.
+- **Still open:** gVisor on a Linux host, and production worker hosting (Docker socket risk). Both in Phase 5.
+
 ### 2.1 API
 
 - `POST /api/compile` `{ board, files: [{ path, content }], options }` returns `{ jobId }`.
