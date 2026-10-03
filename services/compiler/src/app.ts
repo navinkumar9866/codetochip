@@ -1,20 +1,41 @@
-import Fastify, { type FastifyServerOptions } from 'fastify';
+import Fastify, { type FastifyRequest, type FastifyServerOptions } from 'fastify';
+import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { boards } from '@codetochip/boards';
+import type { VerifyUser } from './auth.ts';
 import type { CompileService } from './service.ts';
 import { validateCompileRequest } from './validate.ts';
 
 export interface AppOptions extends FastifyServerOptions {
-  /** Compile requests per IP per minute (docs/PLAN.md 2.3). */
+  /** Compile requests per user (or per IP without sign-in) per minute (docs/PLAN.md 2.3). */
   compilesPerMinute?: number;
+  /**
+   * Sites allowed to call the API from the browser when it runs on its own domain (ADR 0005).
+   * Empty means same-origin only (local dev proxies /api through Vite).
+   */
+  allowedOrigins?: string[];
+  /** When set, only signed-in users may compile (the hosted site). Unset in local dev. */
+  verifyUser?: VerifyUser;
+  /** Refuse new compiles while this many are already waiting, so a flood can't pile up. */
+  maxQueued?: number;
 }
+
+const SIGN_IN = 'Sign in to check and upload your code. It’s free: use Google or your email.';
 
 /** Builds the app without listening, so tests can use `app.inject()`. */
 export function buildApp(service: CompileService, opts: AppOptions = {}) {
-  const { compilesPerMinute = 30, ...fastifyOpts } = opts;
+  const {
+    compilesPerMinute = 30,
+    allowedOrigins = [],
+    verifyUser,
+    maxQueued,
+    ...fastifyOpts
+  } = opts;
+  const users = new WeakMap<FastifyRequest, string>();
   // Sources are capped at 256 KB; leave room for JSON escaping.
   const app = Fastify({ bodyLimit: 1024 * 1024, ...fastifyOpts });
 
+  if (allowedOrigins.length) void app.register(cors, { origin: allowedOrigins });
   void app.register(rateLimit, { global: false });
   // Routes go in a plugin registered after rate-limit, so its per-route hook is installed first.
   void app.register(async (app) => {
@@ -29,16 +50,31 @@ export function buildApp(service: CompileService, opts: AppOptions = {}) {
           rateLimit: {
             max: compilesPerMinute,
             timeWindow: '1 minute',
+            // After sign-in is checked, so each user has their own limit (a class shares one IP).
+            hook: 'preHandler',
+            keyGenerator: (req) => users.get(req) ?? req.ip,
             errorResponseBuilder: () => ({
               statusCode: 429,
               error: 'You’re compiling very often. Wait a minute, then try again.',
             }),
           },
         },
+        preValidation: async (req, reply) => {
+          if (!verifyUser) return;
+          const token = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
+          const user = token ? await verifyUser(token) : null;
+          if (!user) return reply.code(401).send({ error: SIGN_IN });
+          users.set(req, user.uid);
+        },
       },
       async (req, reply) => {
         const v = validateCompileRequest(req.body);
         if (!v.ok) return reply.code(400).send({ error: v.error });
+        if (maxQueued !== undefined && (await service.waiting()) >= maxQueued) {
+          return reply
+            .code(503)
+            .send({ error: 'The compile server is very busy. Try again in a minute.' });
+        }
         const { id, position, cached } = await service.submit(v.job);
         return reply.code(202).send({ jobId: id, position, cached });
       },

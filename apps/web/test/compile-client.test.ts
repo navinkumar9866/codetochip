@@ -102,6 +102,18 @@ describe('compileOnServer', () => {
     await expect(compileOnServer(req, { pollMs: 1 })).rejects.toThrow(message);
   });
 
+  it('sends the signed-in user’s token to the compile server', async () => {
+    const fetchMock = serve({
+      '/api/compile': [() => json({ error: 'Sign in to check and upload your code.' }, 401)],
+    });
+    await expect(
+      compileOnServer(req, { baseUrl: 'https://compile.example', token: 'tok' }),
+    ).rejects.toThrow(/Sign in/);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://compile.example/api/compile');
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer tok');
+  });
+
   it('explains when the server is unreachable', async () => {
     vi.stubGlobal(
       'fetch',

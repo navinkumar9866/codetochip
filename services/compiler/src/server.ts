@@ -1,4 +1,5 @@
 import { buildApp } from './app.ts';
+import { firebaseVerifier } from './auth.ts';
 import { createRuntime } from './runtime.ts';
 
 const port = Number(process.env.PORT ?? 3001);
@@ -20,6 +21,14 @@ if (role === 'worker' || role === 'all') {
 if (role === 'api' || role === 'all') {
   const app = buildApp(runtime.service, {
     logger: true,
+    // Behind the HTTPS proxy on the compile VM, so rate limits see the student's IP, not Caddy's.
+    trustProxy: process.env.TRUST_PROXY === '1',
+    allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '').split(',').filter(Boolean),
+    // Set on the hosted server: only users signed in to this Firebase project may compile.
+    ...(process.env.FIREBASE_PROJECT_ID && {
+      verifyUser: firebaseVerifier(process.env.FIREBASE_PROJECT_ID),
+    }),
+    ...(process.env.MAX_QUEUED && { maxQueued: Number(process.env.MAX_QUEUED) }),
     ...(process.env.COMPILES_PER_MINUTE && {
       compilesPerMinute: Number(process.env.COMPILES_PER_MINUTE),
     }),

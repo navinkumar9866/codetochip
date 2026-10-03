@@ -28,6 +28,8 @@ export type JobHandler = (job: CompileJob) => Promise<JobOutcome>;
 export interface JobQueue {
   enqueue(job: CompileJob): Promise<{ id: string; position: number }>;
   status(id: string): Promise<JobStatus | null>;
+  /** Jobs waiting for a worker. */
+  waiting(): Promise<number>;
   /** Start processing in this process. */
   start(handler: JobHandler, concurrency: number): void;
   close(): Promise<void>;
@@ -47,7 +49,7 @@ export const newId = () => randomUUID();
 
 /** Single-process queue for development and tests (no Redis). */
 export class InMemoryJobQueue implements JobQueue {
-  private waiting: { id: string; job: CompileJob }[] = [];
+  private pending: { id: string; job: CompileJob }[] = [];
   private states = new Map<string, JobStatus>();
   private handler: JobHandler | null = null;
   private running = 0;
@@ -58,18 +60,22 @@ export class InMemoryJobQueue implements JobQueue {
 
   async enqueue(job: CompileJob) {
     const id = newId();
-    this.waiting.push({ id, job });
+    this.pending.push({ id, job });
     this.states.set(id, { id, state: 'queued' });
-    const position = this.waiting.length - 1;
+    const position = this.pending.length - 1;
     queueMicrotask(() => this.pump());
     return { id, position };
+  }
+
+  async waiting() {
+    return this.pending.length;
   }
 
   async status(id: string): Promise<JobStatus | null> {
     const s = this.states.get(id);
     if (!s) return null;
     if (s.state !== 'queued') return s;
-    return { ...s, position: this.waiting.findIndex((w) => w.id === id) };
+    return { ...s, position: this.pending.findIndex((w) => w.id === id) };
   }
 
   start(handler: JobHandler, concurrency: number) {
@@ -79,8 +85,8 @@ export class InMemoryJobQueue implements JobQueue {
   }
 
   private pump() {
-    while (!this.closed && this.handler && this.running < this.concurrency && this.waiting.length) {
-      const { id, job } = this.waiting.shift()!;
+    while (!this.closed && this.handler && this.running < this.concurrency && this.pending.length) {
+      const { id, job } = this.pending.shift()!;
       this.running++;
       this.states.set(id, { id, state: 'running' });
       this.handler(job)

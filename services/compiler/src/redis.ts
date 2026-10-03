@@ -37,6 +37,10 @@ export class BullJobQueue implements JobQueue {
     return { id: added.id!, position };
   }
 
+  waiting() {
+    return this.queue.getWaitingCount();
+  }
+
   async status(id: string): Promise<JobStatus | null> {
     const job = await Job.fromId<CompileJob, JobOutcome>(this.queue, id);
     if (!job) return null;

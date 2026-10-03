@@ -1,6 +1,6 @@
 # 0005 — Hosting
 
-Date: 2026-10-02 · Status: **proposed** (needs Navin's decision before the first deployment)
+Date: 2026-10-02 · Status: **accepted 2026-10-03**: start with a single VM (below)
 
 ## What has to run
 
@@ -58,9 +58,13 @@ Everything else: Firebase Hosting for web and admin, Cloud Run for the compile A
 
 **Costs:** see ADR 0001 for the Firebase side. Get VM, Memorystore and Cloud Run prices for `asia-south1` from the Google Cloud pricing calculator before deciding; I haven't verified current list prices.
 
+## Decision (2026-10-03)
+
+Start smaller than A: **one e2-standard-2 VM** in `asia-south1` running Caddy (HTTPS), the compile API, one worker (gVisor) and Redis, from `deploy/compile-vm/`. That's about $66 a month, with no Memorystore or Cloud Run. The web app calls it on its own hostname (`VITE_COMPILE_URL`); the API allows only the site's origins (`ALLOWED_ORIGINS`). Only signed-in users may compile (guests can't): the API checks the Firebase ID token (`FIREBASE_PROJECT_ID`), limits each user to 30 compiles a minute, and refuses new jobs while 100 are waiting (`MAX_QUEUED`). That stops anonymous abuse and keeps a flood from piling up, though not a network-level flood. One VM runs about two compiles at once, so a full class will queue. Move to A (more VMs, shared Redis) when real classes need it.
+
 ## Before the first deployment (Navin)
 
 - [ ] Create the Firebase project (Blaze plan, `asia-south1`). Enable Google and Email-link sign-in.
-- [ ] Choose a worker hosting option (A/B/C).
+- [x] Choose a worker hosting option: one VM to start (2026-10-03).
 - [ ] Confirm redistribution terms with C-DAC (open question 6). The worker image contains the VEGA core.
 - [ ] Domain name.

@@ -11,11 +11,14 @@ export function ProblemsPanel({
   outcome,
   stale,
   onJump,
+  mustSignIn = false,
 }: {
   outcome: CompileOutcome | null;
   /** The code changed since this outcome was produced. */
   stale: boolean;
   onJump: (d: Diagnostic) => void;
+  /** Guests must sign in before they can check. */
+  mustSignIn?: boolean;
 }) {
   const [picked, setPicked] = useState(0);
   const [showLog, setShowLog] = useState(false);
@@ -25,7 +28,11 @@ export function ProblemsPanel({
       <Empty
         icon={<CircleDashed size={16} className="text-muted" />}
         title="Not checked yet"
-        text="Press Check to look for mistakes. Nothing is sent to the board."
+        text={
+          mustSignIn
+            ? 'Sign in (it’s free), then press Check to look for mistakes.'
+            : 'Press Check to look for mistakes. Nothing is sent to the board.'
+        }
       />
     );
   }

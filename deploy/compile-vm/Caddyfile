@@ -1,0 +1,4 @@
+# HTTPS for the compile API. Caddy gets and renews the certificate itself.
+{$COMPILE_HOST} {
+	reverse_proxy compiler-api:3001
+}

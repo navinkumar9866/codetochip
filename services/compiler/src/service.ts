@@ -44,6 +44,11 @@ export class CompileService {
     return this.deps.queue.status(id);
   }
 
+  /** Jobs waiting for a worker. */
+  waiting(): Promise<number> {
+    return this.deps.queue.waiting();
+  }
+
   artifact(id: string): Promise<Uint8Array | null> {
     return this.deps.artifacts.get(id);
   }

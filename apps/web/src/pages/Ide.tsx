@@ -9,6 +9,7 @@ import {
   Download,
   FolderTree,
   ListChecks,
+  LogIn,
   Send,
   Terminal,
   Upload,
@@ -18,7 +19,9 @@ import {
 import { boards, flashOptionsFor, getBoard, type BoardManifest } from '@codetochip/boards';
 import { validateProjectInput, type AssignmentRef, type ProjectFile } from '@codetochip/data';
 import { detectTransport, getProtocol, type FlashProgress } from '@codetochip/flasher';
+import { openSignIn } from '../account/AccountBar.tsx';
 import {
+  compileNeedsSignIn,
   compileOnServer,
   type CompileOutcome,
   type CompileProgress,
@@ -35,7 +38,7 @@ import { SymbolBar } from '../ide/SymbolBar.tsx';
 import { useMediaQuery } from '../ide/use-media-query.ts';
 import { useDevice, useDeviceState } from '../ide/device-context.tsx';
 import { SerialMonitor } from '../ide/SerialMonitor.tsx';
-import { useServices } from '../services.tsx';
+import { useCurrentUser, useServices } from '../services.tsx';
 import { useTelemetry } from '../telemetry.ts';
 import { Info } from '../ui/Info.tsx';
 
@@ -63,6 +66,7 @@ export function IdePage() {
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const { auth, projects, content, classroom } = useServices();
+  const user = useCurrentUser();
   const device = useDevice();
   const record = useTelemetry();
   const deviceState = useDeviceState(device);
@@ -226,7 +230,10 @@ export function IdePage() {
     try {
       const r = await compileOnServer(
         { board: draft.boardId, mode: modeId, files: draft.files },
-        { onProgress: (progress) => setBusy({ kind: 'compile', progress }) },
+        {
+          onProgress: (progress) => setBusy({ kind: 'compile', progress }),
+          token: await auth.idToken(),
+        },
       );
       setOutcome(r.outcome);
       setCheckedKey(buildKey);
@@ -373,7 +380,9 @@ export function IdePage() {
   const errorFiles = new Set(
     stale ? [] : problems.filter((d) => d.severity === 'error').map((d) => d.file),
   );
-  const uploadLocked = !!busy || !device || errors > 0;
+  // Guests can't compile on the hosted server, so Check, Upload and .bin wait for sign-in.
+  const mustSignIn = compileNeedsSignIn && user !== undefined && (!user || user.isAnonymous);
+  const uploadLocked = !!busy || !device || errors > 0 || mustSignIn;
   const check = () => {
     built.current = null;
     void ensureBuilt();
@@ -561,16 +570,29 @@ export function IdePage() {
             <div className="flex flex-wrap items-center gap-2 px-4 py-2">
               {wide && (
                 <>
-                  <span className="flex items-center gap-1.5">
-                    <button className="btn btn-ghost" disabled={!!busy} onClick={check}>
-                      {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Check'}
-                      <ListChecks size={16} />
-                    </button>
-                    <Info
-                      title="Check"
-                      text="Compiles your program on our server to find mistakes. Nothing is sent to the board."
-                    />
-                  </span>
+                  {mustSignIn ? (
+                    <span className="flex items-center gap-1.5">
+                      <button className="btn btn-primary" onClick={openSignIn}>
+                        Sign in to check
+                        <LogIn size={16} />
+                      </button>
+                      <Info
+                        title="Why sign in?"
+                        text="Checking and uploading run on our servers, so they need a free account. Sign in with Google or your email; your work comes with you."
+                      />
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <button className="btn btn-primary" disabled={!!busy} onClick={check}>
+                        {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Check'}
+                        <ListChecks size={16} />
+                      </button>
+                      <Info
+                        title="Check"
+                        text="Compiles your program on our server to find mistakes. Nothing is sent to the board."
+                      />
+                    </span>
+                  )}
                   {busy?.kind === 'upload' ? (
                     <button className="btn btn-secondary" onClick={() => device?.cancelFlash()}>
                       Cancel upload
@@ -579,7 +601,7 @@ export function IdePage() {
                   ) : (
                     <span className="flex items-center gap-1.5">
                       <button
-                        className="btn btn-primary"
+                        className="btn btn-secondary"
                         disabled={uploadLocked}
                         onClick={() => void upload()}
                       >
@@ -610,7 +632,7 @@ export function IdePage() {
               />
               <button
                 className="btn btn-ghost"
-                disabled={!!busy}
+                disabled={!!busy || mustSignIn}
                 aria-label="Download .bin"
                 onClick={() => void download()}
               >
@@ -736,7 +758,12 @@ export function IdePage() {
             {!wide && phoneView !== 'code' && (
               <section className="flex min-h-0 flex-1 flex-col overflow-auto">
                 {phoneView === 'problems' ? (
-                  <ProblemsPanel outcome={outcome} stale={stale} onJump={jump} />
+                  <ProblemsPanel
+                    outcome={outcome}
+                    stale={stale}
+                    onJump={jump}
+                    mustSignIn={mustSignIn}
+                  />
                 ) : (
                   <SerialMonitor
                     device={device}
@@ -781,7 +808,12 @@ export function IdePage() {
               </div>
               <div className="max-h-72 overflow-auto">
                 {panel === 'problems' ? (
-                  <ProblemsPanel outcome={outcome} stale={stale} onJump={jump} />
+                  <ProblemsPanel
+                    outcome={outcome}
+                    stale={stale}
+                    onJump={jump}
+                    mustSignIn={mustSignIn}
+                  />
                 ) : (
                   <SerialMonitor
                     device={device}
@@ -839,13 +871,19 @@ export function IdePage() {
                     {label}
                   </button>
                 ))}
-                <button
-                  className="btn btn-secondary m-1 justify-center"
-                  disabled={!!busy}
-                  onClick={check}
-                >
-                  {busy?.kind === 'compile' ? '…' : 'Check'}
-                </button>
+                {mustSignIn ? (
+                  <button className="btn btn-primary m-1 justify-center" onClick={openSignIn}>
+                    Sign in
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary m-1 justify-center"
+                    disabled={!!busy}
+                    onClick={check}
+                  >
+                    {busy?.kind === 'compile' ? '…' : 'Check'}
+                  </button>
+                )}
                 {busy?.kind === 'upload' ? (
                   <button
                     className="btn btn-secondary m-1 justify-center"
@@ -855,7 +893,7 @@ export function IdePage() {
                   </button>
                 ) : (
                   <button
-                    className="btn btn-primary m-1 justify-center"
+                    className="btn btn-secondary m-1 justify-center"
                     disabled={uploadLocked}
                     onClick={() => void upload()}
                   >

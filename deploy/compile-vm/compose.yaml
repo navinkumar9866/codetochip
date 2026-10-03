@@ -1,0 +1,63 @@
+# Production compile server on one VM (ADR 0005, option 1): HTTPS proxy, compile API, one
+# worker and Redis. Run from this directory on the VM: docker compose up -d --build
+# Settings come from .env next to this file (copy .env.example).
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      COMPILE_HOST: ${COMPILE_HOST:?set COMPILE_HOST in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - compiler-api
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Jobs and builds expire within the hour, so nothing needs to survive a restart.
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+
+  compiler-api:
+    build:
+      context: ../..
+      dockerfile: services/compiler/Dockerfile
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      ROLE: api
+      TRUST_PROXY: '1'
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?set ALLOWED_ORIGINS in .env}
+      # Only users signed in to this Firebase project may compile (not guests).
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?set FIREBASE_PROJECT_ID in .env}
+      # Per signed-in user.
+      COMPILES_PER_MINUTE: ${COMPILES_PER_MINUTE:-30}
+      MAX_QUEUED: ${MAX_QUEUED:-100}
+    depends_on:
+      - redis
+
+  compiler-worker:
+    build:
+      context: ../..
+      dockerfile: services/compiler/Dockerfile
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379
+      ROLE: worker
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      # Each compile runs in a fresh gVisor container (ADR 0004).
+      SANDBOX_RUNTIME: runsc
+    # Starts sandbox containers through the host's Docker daemon. The socket is root on this
+    # VM, which is why nothing else runs here.
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+
+volumes:
+  caddy-data:

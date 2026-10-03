@@ -32,6 +32,7 @@ export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthServic
       });
     },
     currentUser: () => cached,
+    idToken: async () => (auth.currentUser ? auth.currentUser.getIdToken() : null),
     async ensureUser() {
       if (!auth.currentUser) await signInAnonymously(auth);
       return (await refresh(auth.currentUser))!;

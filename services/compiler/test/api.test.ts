@@ -30,6 +30,55 @@ async function waitDone(app: ReturnType<typeof buildApp>, id: string): Promise<S
 }
 
 describe('compile API', () => {
+  it('only lets signed-in users compile, each with their own limit', async () => {
+    const t = createTestService();
+    const app = buildApp(t.service, {
+      compilesPerMinute: 1,
+      verifyUser: async (token) => (token.startsWith('ok-') ? { uid: token } : null),
+    });
+    apps.push(app);
+    const post = (token?: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/compile',
+        payload: blink(),
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+      });
+    const anon = await post();
+    expect(anon.statusCode).toBe(401);
+    expect(anon.json<{ error: string }>().error).toMatch(/Sign in/);
+    expect((await post('guest')).statusCode).toBe(401);
+    expect((await post('ok-a')).statusCode).toBe(202);
+    expect((await post('ok-a')).statusCode).toBe(429);
+    // Same IP, different user: not limited by the first user's compiles.
+    expect((await post('ok-b')).statusCode).toBe(202);
+  });
+
+  it('refuses new compiles while the queue is full', async () => {
+    const t = createTestService();
+    const app = buildApp(t.service, { compilesPerMinute: 1000, maxQueued: 0 });
+    apps.push(app);
+    const r = await app.inject({ method: 'POST', url: '/api/compile', payload: blink() });
+    expect(r.statusCode).toBe(503);
+    expect(r.json<{ error: string }>().error).toMatch(/busy/);
+  });
+
+  it('lets only the allowed sites call it from another origin', async () => {
+    const t = createTestService();
+    const app = buildApp(t.service, { allowedOrigins: ['https://codetochip.web.app'] });
+    apps.push(app);
+    const preflight = (origin: string) =>
+      app.inject({
+        method: 'OPTIONS',
+        url: '/api/compile',
+        headers: { origin, 'access-control-request-method': 'POST' },
+      });
+    const ok = await preflight('https://codetochip.web.app');
+    expect(ok.headers['access-control-allow-origin']).toBe('https://codetochip.web.app');
+    const other = await preflight('https://example.com');
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
   it('reports health and lists only user-visible boards', async () => {
     const { app } = setup();
     expect((await app.inject({ url: '/health' })).json()).toEqual({ ok: true });

@@ -38,6 +38,7 @@ export function lazyServices(load: () => Promise<AppServices>): AppServices & {
       completeEmailLink: later((s) => s.auth.completeEmailLink),
       pendingEmail: () => real?.auth.pendingEmail() ?? null,
       signOut: later((s) => s.auth.signOut),
+      idToken: later((s) => s.auth.idToken),
     },
     projects: {
       listMine: later((s) => s.projects.listMine),

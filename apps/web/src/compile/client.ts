@@ -35,6 +35,15 @@ interface Status {
 
 const OFFLINE = 'Can’t reach the compile server. Check your internet connection, then try again.';
 
+/**
+ * Where the compile API lives. Empty means this site's own /api (Vite proxies it in dev); the
+ * hosted app sets VITE_COMPILE_URL to the compile VM (ADR 0005).
+ */
+const COMPILE_URL = (import.meta.env.VITE_COMPILE_URL ?? '').replace(/\/+$/, '');
+
+/** The hosted compile server only serves signed-in users (guests can't compile there). */
+export const compileNeedsSignIn = COMPILE_URL !== '';
+
 /** Compiles on the server (services/compiler) and downloads the result. */
 export async function compileOnServer(
   req: { board: string; mode: string; files: ProjectFile[] },
@@ -42,11 +51,20 @@ export async function compileOnServer(
     onProgress?: (p: CompileProgress) => void;
     signal?: AbortSignal;
     baseUrl?: string;
+    /** The signed-in user's ID token; the hosted compile API only serves signed-in users. */
+    token?: string | null;
     pollMs?: number;
     timeoutMs?: number;
   } = {},
 ): Promise<CompileResult> {
-  const { onProgress, signal, baseUrl = '', pollMs = 400, timeoutMs = 120_000 } = opts;
+  const {
+    onProgress,
+    signal,
+    baseUrl = COMPILE_URL,
+    token,
+    pollMs = 400,
+    timeoutMs = 120_000,
+  } = opts;
   const request = async (path: string, init?: RequestInit) => {
     try {
       return await fetch(baseUrl + path, { ...init, ...(signal && { signal }) });
@@ -59,7 +77,10 @@ export async function compileOnServer(
   onProgress?.({ state: 'submitting' });
   const res = await request('/api/compile', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(token && { authorization: `Bearer ${token}` }),
+    },
     body: JSON.stringify(req),
   });
   const body = (await res.json().catch(() => ({}))) as {

@@ -100,6 +100,8 @@ export function createMemoryServices(
     async signOut() {
       setUser(null);
     },
+    // The local compile API doesn't check tokens.
+    idToken: async () => (user ? `memory:${user.uid}` : null),
   };
 
   const content = {

@@ -1,12 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signInWithGoogleKeepingWork, type AppUser } from '@codetochip/data';
 import { useServices } from '../services.tsx';
+
+const OPEN_SIGN_IN = 'c2c-open-sign-in';
+
+/** Opens the sign-in box in the top bar, e.g. from a "Sign in to check" button. */
+export function openSignIn() {
+  window.dispatchEvent(new Event(OPEN_SIGN_IN));
+}
 
 export function AccountBar({ user }: { user: AppUser | null | undefined }) {
   const services = useServices();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | { error: string }>('idle');
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_SIGN_IN, show);
+    return () => window.removeEventListener(OPEN_SIGN_IN, show);
+  }, []);
 
   if (user === undefined) return null;
   const signedIn = user && !user.isAnonymous;

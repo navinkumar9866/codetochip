@@ -44,6 +44,8 @@ export interface AuthService {
   /** The email a link was sent to from this device, if any. */
   pendingEmail(): string | null;
   signOut(): Promise<void>;
+  /** A token proving who is signed in, for our own servers (the compile API), or null. */
+  idToken(): Promise<string | null>;
 }
 
 /** Published content managed by editors in apps/admin. */
