@@ -118,3 +118,32 @@
   color: var(--l-muted);
   border: 1px solid var(--l-divider);
 }
+
+/*
+ * App components placed on these pages (settings menu, sign-in) read the app's theme tokens;
+ * map them onto the Modernist palette so they match.
+ */
+.landing {
+  --ground: var(--l-bg);
+  --panel: var(--l-bg);
+  --raised: var(--l-bg);
+  --raised-2: var(--l-surface);
+  --line: var(--l-divider);
+  --line-strong: var(--l-text);
+  --ink: var(--l-text);
+  --muted: var(--l-muted);
+  --sel: var(--l-accent-100);
+  --accent: var(--l-accent);
+  --accent-hover: var(--l-accent-hover);
+  --accent-ink: var(--l-accent-700);
+  --accent-soft: var(--l-accent-100);
+  --on-accent: var(--l-bg);
+  --err: #d93636;
+  --err-soft: #fdecec;
+  --err-ink: #a61f1f;
+  --ok: #127a4b;
+  --ok-soft: #e4f4ec;
+  --ok-ink: #0e6440;
+  --r: 0px;
+  --font-body: 'Archivo', system-ui, sans-serif;
+}

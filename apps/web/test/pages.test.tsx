@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { createMemoryServices, type AppServices } from '@codetochip/data';
 import { Layout } from '../src/app/Layout.tsx';
 import { HelpPage } from '../src/pages/Help.tsx';
-import { HomePage } from '../src/pages/Home.tsx';
+import { edited, HomePage } from '../src/pages/Home.tsx';
 import { ServicesProvider } from '../src/services.tsx';
 
 afterEach(cleanup);
@@ -15,10 +15,10 @@ const renderAt = (path: string, services: AppServices = createMemoryServices()) 
       <RouterProvider
         router={createMemoryRouter(
           [
+            { path: 'projects', element: <HomePage /> },
             {
               element: <Layout />,
               children: [
-                { path: 'projects', element: <HomePage /> },
                 { path: 'help', element: <HelpPage /> },
                 { path: 'ide', element: <p>IDE</p> },
               ],
@@ -94,5 +94,18 @@ describe('help page', () => {
     renderAt('/help');
     expect(screen.getByText(/Remove the BOOT SEL jumper \(J12\)/)).toBeTruthy();
     expect(screen.getByText(/Silicon Labs CP210x USB to UART driver/)).toBeTruthy();
+  });
+});
+
+describe('edited', () => {
+  it('says when a project was last changed in plain words', () => {
+    const now = new Date(2026, 9, 3, 12, 0);
+    const ago = (min: number) => edited(new Date(now.getTime() - min * 60000), now);
+    expect(ago(0)).toBe('Just now');
+    expect(ago(5)).toBe('5 min ago');
+    expect(ago(60)).toBe('1 hour ago');
+    expect(ago(150)).toBe('3 hours ago');
+    expect(edited(new Date(2026, 9, 2, 9, 0), now)).toBe('Yesterday');
+    expect(edited(new Date(2026, 8, 28), now)).toMatch(/28/);
   });
 });

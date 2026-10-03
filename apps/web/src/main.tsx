@@ -45,10 +45,10 @@ const firebase = () =>
 
 const router = createBrowserRouter([
   { index: true, element: <LandingPage /> },
+  { path: 'projects', element: <HomePage /> },
   {
     element: <Layout />,
     children: [
-      { path: 'projects', element: <HomePage /> },
       { path: 'help', element: <HelpPage /> },
       { path: 'help/android', element: <AndroidPage /> },
       { path: 'classes', element: <ClassesPage /> },
