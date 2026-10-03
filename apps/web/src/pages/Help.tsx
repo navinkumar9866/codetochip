@@ -18,12 +18,12 @@ export function HelpPage() {
   const [shareStats, setShareStats] = useState(telemetryEnabled);
   const bridges = [...new Set(boards.flatMap((b) => b.usb.map((u) => u.bridge)))];
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 text-slate-200">
+    <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 text-ink">
       <h1 className="text-2xl font-semibold">Help</h1>
 
       <section>
         <h2 className="text-lg font-medium">Your browser</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-muted">
           {support.kind === 'unsupported'
             ? support.reason
             : 'This browser can connect to boards over USB.'}{' '}
@@ -31,7 +31,7 @@ export function HelpPage() {
           Android. iPhones and iPads can write and compile code and download the .bin file.
         </p>
         <p className="mt-2 text-sm">
-          <Link to="/help/android" className="text-sky-400 underline">
+          <Link to="/help/android" className="text-accent-ink underline">
             Using an Android phone: what you need and how to connect
           </Link>
         </p>
@@ -39,7 +39,7 @@ export function HelpPage() {
 
       <section>
         <h2 className="text-lg font-medium">If the board doesn’t appear when you click Connect</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink">
           <li>Try a different USB cable. Many cables only charge and can’t carry data.</li>
           <li>Try a different USB port, and avoid unpowered hubs.</li>
           <li>
@@ -59,10 +59,8 @@ export function HelpPage() {
             <h2 className="text-lg font-medium">{b.name}</h2>
             {b.help.setup && (
               <>
-                <h3 className="mt-3 text-sm font-medium text-slate-400">
-                  Before your first upload
-                </h3>
-                <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-slate-300">
+                <h3 className="mt-3 text-sm font-medium text-muted">Before your first upload</h3>
+                <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-ink">
                   {b.help.setup.map((s) => (
                     <li key={s}>{s}</li>
                   ))}
@@ -71,10 +69,8 @@ export function HelpPage() {
             )}
             {b.help.troubleshooting && (
               <>
-                <h3 className="mt-3 text-sm font-medium text-slate-400">
-                  If uploading doesn’t work
-                </h3>
-                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-300">
+                <h3 className="mt-3 text-sm font-medium text-muted">If uploading doesn’t work</h3>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-ink">
                   {b.help.troubleshooting.map((s) => (
                     <li key={s}>{s}</li>
                   ))}
@@ -83,7 +79,7 @@ export function HelpPage() {
             )}
             <p className="mt-3 text-sm">
               <a
-                className="text-sky-400 underline"
+                className="text-accent-ink underline"
                 href={b.docsUrl}
                 target="_blank"
                 rel="noreferrer"
@@ -96,7 +92,7 @@ export function HelpPage() {
       )}
       <section>
         <h2 className="text-lg font-medium">Usage statistics</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <p className="mt-2 text-sm text-muted">
           To find out which boards, browsers and phones work, CodeToChip records whether compiles
           and uploads succeed, how long they take, and your operating system and browser name. It
           never records who you are, your code, or file names.

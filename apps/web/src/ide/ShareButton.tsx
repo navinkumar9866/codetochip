@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Share2 } from 'lucide-react';
 import type { ProjectInput } from '@codetochip/data';
 import { useServices } from '../services.tsx';
 
@@ -27,43 +28,40 @@ export function ShareButton({ project }: { project: ProjectInput }) {
 
   return (
     <div className="relative">
-      <button
-        className="rounded px-2 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-40"
-        disabled={state === 'working'}
-        onClick={() => void share()}
-      >
+      <button className="btn btn-ghost" disabled={state === 'working'} onClick={() => void share()}>
         Share
+        <Share2 size={16} />
       </button>
       {(link || typeof state === 'object') && (
         <div
           role="dialog"
           aria-label="Share link"
-          className="absolute right-0 z-10 mt-1 w-72 rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm shadow-lg"
+          className="absolute right-0 z-10 mt-1 w-72 rounded-lg border border-line-strong bg-panel p-3 text-sm shadow-lg"
         >
           {typeof state === 'object' ? (
-            <p role="alert" className="text-red-400">
+            <p role="alert" className="text-err-ink">
               {state.error}
             </p>
           ) : (
             <>
-              <p className="text-slate-300">
+              <p className="text-ink">
                 Anyone with this link can see a copy of your sketch as it is now. Later changes
                 aren’t shared.
               </p>
               <input
                 readOnly
                 aria-label="Link"
-                className="mt-2 w-full rounded bg-slate-800 px-2 py-1 font-mono text-xs"
+                className="mt-2 w-full rounded bg-raised-2 px-2 py-1 font-mono text-xs"
                 value={link ?? ''}
                 onFocus={(e) => e.target.select()}
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-muted">
                 {state === 'copied' ? 'Copied to the clipboard.' : 'Select the link to copy it.'}
               </p>
             </>
           )}
           <button
-            className="mt-2 text-xs text-slate-400 underline"
+            className="mt-2 text-xs text-muted underline"
             onClick={() => {
               setLink(null);
               setState('idle');

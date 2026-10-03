@@ -50,18 +50,18 @@ export function ClassesPage() {
     <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8">
       <h1 className="text-2xl font-semibold">Classes</h1>
       {error && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-sm text-err-ink">
           {error}
         </p>
       )}
 
       {!named ? (
-        <section className="rounded-lg border border-slate-800 p-4">
-          <p className="text-slate-300">
+        <section className="rounded-lg border border-line p-4">
+          <p className="text-ink">
             Sign in with Google to join a class, so your teacher can see who you are.
           </p>
           <button
-            className="mt-3 rounded-md bg-sky-600 px-3 py-1.5 font-medium text-white"
+            className="mt-3 rounded-md bg-accent px-3 py-1.5 font-medium text-on-accent"
             onClick={() =>
               void signInWithGoogleKeepingWork(services).catch((e: Error) => setError(e.message))
             }
@@ -83,12 +83,12 @@ export function ClassesPage() {
               <input
                 aria-label="Class code"
                 placeholder="Code from your teacher"
-                className="w-48 rounded bg-slate-800 px-3 py-2 font-mono tracking-widest uppercase"
+                className="w-48 rounded bg-raised-2 px-3 py-2 font-mono tracking-widest uppercase"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
               />
               <button
-                className="rounded bg-sky-600 px-4 py-2 font-medium text-white disabled:opacity-40"
+                className="rounded bg-accent px-4 py-2 font-medium text-on-accent disabled:opacity-40"
                 disabled={!code.trim()}
               >
                 Join
@@ -123,12 +123,12 @@ export function ClassesPage() {
                   <input
                     aria-label="Class name"
                     placeholder="e.g. Grade 9 Robotics"
-                    className="min-w-0 flex-1 rounded bg-slate-800 px-3 py-2"
+                    className="min-w-0 flex-1 rounded bg-raised-2 px-3 py-2"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
                   />
                   <button
-                    className="rounded bg-slate-700 px-4 py-2 font-medium disabled:opacity-40"
+                    className="rounded bg-raised-2 px-4 py-2 font-medium disabled:opacity-40"
                     disabled={!newName.trim()}
                   >
                     Create class
@@ -156,17 +156,17 @@ function ClassList({
     <section>
       <h2 className="text-lg font-medium">{title}</h2>
       {classes.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">{empty}</p>
+        <p className="mt-2 text-sm text-muted">{empty}</p>
       ) : (
         <ul className="mt-2 space-y-2">
           {classes.map((c) => (
             <li key={c.id}>
               <Link
                 to={`/classes/${c.id}`}
-                className="block rounded-lg border border-slate-800 p-3 hover:border-slate-600"
+                className="block rounded-lg border border-line p-3 hover:border-line-strong"
               >
                 <span className="font-medium">{c.name}</span>
-                <span className="ml-2 text-sm text-slate-400">· {c.ownerName}</span>
+                <span className="ml-2 text-sm text-muted">· {c.ownerName}</span>
               </Link>
             </li>
           ))}

@@ -7,7 +7,7 @@ import { expect, test, type Page } from '@playwright/test';
 const MOCK = 'services=memory&device=mock';
 
 /** Phones show one view at a time; open it from the bottom bar if there is one. */
-async function openView(page: Page, name: 'Code' | 'Output' | 'Monitor') {
+async function openView(page: Page, name: 'Code' | 'Problems' | 'Serial') {
   const bar = page.getByRole('navigation', { name: 'Editor' });
   if (await bar.isVisible()) await bar.getByRole('button', { name, exact: true }).click();
 }
@@ -38,9 +38,19 @@ const ok = {
   artifact: { id: 'art-1', url: '/api/artifacts/art-1', size: 4396, sha256: 'x', expiresAt: '' },
 };
 
+test('the homepage leads into the app', async ({ page }) => {
+  await page.goto(`/?${MOCK}`);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Put it on the chip.');
+  // Not-yet-built features are labelled, not promised.
+  await expect(page.getByText('Coming soon').first()).toBeVisible();
+  await page.getByRole('link', { name: 'Start your first project' }).click();
+  await expect(page).toHaveURL(/\/projects/);
+  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+});
+
 test('open an example, upload it, and see the program’s serial output', async ({ page }) => {
   await fakeCompiler(page, ok);
-  await page.goto(`/?${MOCK}`);
+  await page.goto(`/projects?${MOCK}`);
   await page.getByRole('link', { name: /Hello, serial/ }).click();
   await expect(page.getByLabel('Project name')).toHaveValue('Hello, serial');
 
@@ -53,7 +63,7 @@ test('open an example, upload it, and see the program’s serial output', async 
     timeout: 15_000,
   });
   await expect(page.getByTestId('serial-output')).toContainText('Hello from CodeToChip 0');
-  await expect(page.getByText('● Connected · Disconnect')).toBeVisible();
+  await expect(page.getByRole('button', { name: /· connected$/ })).toBeVisible();
 });
 
 test('shows compile errors inline and in plain words', async ({ page }) => {
@@ -72,13 +82,17 @@ test('shows compile errors inline and in plain words', async ({ page }) => {
     durationMs: 800,
   });
   await page.goto(`/ide?example=builtin-blink&${MOCK}`);
-  await page.getByRole('button', { name: 'Compile', exact: true }).click();
+  await page.getByRole('button', { name: 'Check', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText(
     "Fix the error in blink.ino line 4: 'pinMod' was not declared in this scope",
   );
   await expect(page.locator('.cm-lintRange-error')).toHaveCount(1);
-  await openView(page, 'Output');
-  await expect(page.getByRole('list', { name: 'Problems' })).toContainText('blink.ino:4:3');
+  await openView(page, 'Problems');
+  const problems = page.getByRole('list', { name: 'Problems' });
+  await expect(problems).toContainText('“pinMod” isn’t known here');
+  await expect(problems).toContainText('blink.ino:4:3');
+  await expect(page.getByText('01 · What happened')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upload', exact: true })).toBeDisabled();
 });
 
 test('a guest’s work is saved automatically', async ({ page }) => {
@@ -86,14 +100,15 @@ test('a guest’s work is saved automatically', async ({ page }) => {
   await page.getByLabel('Project name').fill('My first sketch');
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/ide\/[\w-]+/);
-  await page.getByRole('link', { name: 'Home' }).click();
-  await expect(page.getByRole('link', { name: 'My first sketch' })).toBeVisible();
+  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'My first sketch', exact: true })).toBeVisible();
 });
 
 test('works at 380 px wide without sideways scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
   for (const path of [
     `/?${MOCK}`,
+    `/projects?${MOCK}`,
     `/ide?example=builtin-blink&${MOCK}`,
     `/help?${MOCK}`,
     `/help/android?${MOCK}`,
@@ -110,7 +125,7 @@ test('works at 380 px wide without sideways scrolling', async ({ page }) => {
 test.describe('phone layout', () => {
   test.use({ viewport: { width: 380, height: 780 }, hasTouch: true, isMobile: true });
 
-  test('one view at a time, with Compile and Upload in the bottom bar', async ({ page }) => {
+  test('one view at a time, with Check and Upload in the bottom bar', async ({ page }) => {
     await fakeCompiler(page, ok);
     await page.goto(`/ide?example=builtin-hello-serial&${MOCK}`);
     const bar = page.getByRole('navigation', { name: 'Editor' });
@@ -191,7 +206,7 @@ test('classroom: teacher posts an assignment, a student joins and submits, the t
       [uid, displayName, role],
     );
 
-  await page.goto(`/?${MOCK}`);
+  await page.goto(`/projects?${MOCK}`);
   await signInAs('t1', 'Ms Rao', 'teacher');
   await page.getByRole('link', { name: 'Classes' }).click();
   await page.getByLabel('Class name').fill('Grade 9 Robotics');
@@ -264,7 +279,7 @@ test('telemetry: an upload records anonymous compile and flash events; opting ou
   await page.getByRole('link', { name: 'Help' }).click();
   await page.getByLabel('Share anonymous usage statistics').uncheck();
   await page.goBack();
-  await page.getByRole('button', { name: 'Compile', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Check', exact: true }).first().click();
   await page.waitForTimeout(500);
   expect(await events()).toHaveLength(2);
 });
@@ -292,6 +307,6 @@ test('email sign-in link: a guest’s work is kept after signing in by email', a
   await expect(page.getByText('asha@example.com')).toBeVisible();
   await expect(page).not.toHaveURL(/emailLink=/);
 
-  await page.getByRole('link', { name: 'Home' }).click();
-  await expect(page.getByRole('link', { name: 'Guest work' })).toBeVisible();
+  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Guest work', exact: true })).toBeVisible();
 });

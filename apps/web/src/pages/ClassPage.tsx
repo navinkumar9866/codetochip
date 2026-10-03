@@ -34,10 +34,10 @@ export function ClassPage() {
     };
   }, [classroom, classId, user, version]);
 
-  if (cls === undefined) return <p className="p-4 text-slate-400">Loading…</p>;
+  if (cls === undefined) return <p className="p-4 text-muted">Loading…</p>;
   if (cls === null) {
     return (
-      <p role="alert" className="p-4 text-red-400">
+      <p role="alert" className="p-4 text-err-ink">
         This class doesn’t exist, or you haven’t joined it. Ask your teacher for the class code.
       </p>
     );
@@ -48,10 +48,10 @@ export function ClassPage() {
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
       <div>
         <h1 className="text-2xl font-semibold">{cls.name}</h1>
-        <p className="text-sm text-slate-400">Teacher: {cls.ownerName}</p>
+        <p className="text-sm text-muted">Teacher: {cls.ownerName}</p>
       </div>
       {error && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-sm text-err-ink">
           {error}
         </p>
       )}
@@ -121,10 +121,8 @@ function TeacherView({
 
   return (
     <>
-      <section className="rounded-lg border border-sky-800 bg-sky-950/40 p-4">
-        <p className="text-sm text-slate-300">
-          Students join at CodeToChip → Classes with this code:
-        </p>
+      <section className="rounded-lg border border-accent bg-accent-soft p-4">
+        <p className="text-sm text-ink">Students join at CodeToChip → Classes with this code:</p>
         <p className="mt-1 font-mono text-3xl tracking-[0.3em]" aria-label="Join code">
           {cls.joinCode}
         </p>
@@ -132,7 +130,7 @@ function TeacherView({
 
       <section>
         <h2 className="text-lg font-medium">Students ({members.length})</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-muted">
           {members.length ? members.map((m) => m.displayName).join(', ') : 'Nobody has joined yet.'}
         </p>
       </section>
@@ -149,21 +147,21 @@ function TeacherView({
           <input
             aria-label="Assignment title"
             placeholder="Title, e.g. Blink the LED"
-            className="w-full rounded bg-slate-800 px-3 py-2"
+            className="w-full rounded bg-raised-2 px-3 py-2"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <textarea
             aria-label="Instructions"
             placeholder="What should students do?"
-            className="h-24 w-full rounded bg-slate-800 px-3 py-2"
+            className="h-24 w-full rounded bg-raised-2 px-3 py-2"
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
           />
-          <label className="block text-sm text-slate-400">
+          <label className="block text-sm text-muted">
             Starter code
             <select
-              className="mt-1 block rounded bg-slate-800 px-2 py-1.5 text-slate-100"
+              className="mt-1 block rounded bg-raised-2 px-2 py-1.5 text-ink"
               value={starter}
               onChange={(e) => setStarter(e.target.value)}
             >
@@ -181,7 +179,7 @@ function TeacherView({
             </select>
           </label>
           <button
-            className="rounded bg-sky-600 px-4 py-2 font-medium text-white disabled:opacity-40"
+            className="rounded bg-accent px-4 py-2 font-medium text-on-accent disabled:opacity-40"
             disabled={!title.trim()}
           >
             Post assignment
@@ -215,11 +213,11 @@ function TeacherAssignment({
   const [viewing, setViewing] = useState<Submission | null>(null);
 
   return (
-    <li className="rounded-lg border border-slate-800 p-3">
+    <li className="rounded-lg border border-line p-3">
       <div className="flex items-center gap-2">
         <span className="font-medium">{assignment.title}</span>
         <button
-          className="ml-auto text-sm text-sky-400"
+          className="ml-auto text-sm text-accent-ink"
           onClick={() => void classroom.submissions(cls.id, assignment.id).then(setSubs)}
         >
           {subs ? 'Refresh submissions' : 'Show submissions'}
@@ -227,7 +225,7 @@ function TeacherAssignment({
       </div>
       {subs && (
         <div className="mt-2 text-sm">
-          <p className="text-slate-400">
+          <p className="text-muted">
             {subs.length} of {members.length} submitted
           </p>
           <ul className="mt-1 space-y-1">
@@ -236,7 +234,7 @@ function TeacherAssignment({
                 <button className="hover:underline" onClick={() => setViewing(s)}>
                   {s.displayName}
                 </button>{' '}
-                <span className="text-slate-500">{s.submittedAt.toLocaleString()}</span>
+                <span className="text-muted">{s.submittedAt.toLocaleString()}</span>
               </li>
             ))}
           </ul>
@@ -246,13 +244,13 @@ function TeacherAssignment({
         <div
           role="dialog"
           aria-label={`${viewing.displayName}’s submission`}
-          className="mt-3 rounded border border-slate-700"
+          className="mt-3 rounded border border-line-strong"
         >
-          <div className="flex items-center border-b border-slate-700 px-2 py-1 text-sm">
+          <div className="flex items-center border-b border-line-strong px-2 py-1 text-sm">
             <span>
               {viewing.displayName} · {viewing.files[0]?.path}
             </span>
-            <button className="ml-auto text-slate-400" onClick={() => setViewing(null)}>
+            <button className="ml-auto text-muted" onClick={() => setViewing(null)}>
               Close
             </button>
           </div>
@@ -320,9 +318,7 @@ function StudentView({
   return (
     <section>
       <h2 className="text-lg font-medium">Assignments</h2>
-      {assignments.length === 0 && (
-        <p className="mt-2 text-sm text-slate-500">No assignments yet.</p>
-      )}
+      {assignments.length === 0 && <p className="mt-2 text-sm text-muted">No assignments yet.</p>}
       <ul className="mt-2 space-y-3">
         {assignments.map((a) => {
           const started = mine.some(
@@ -330,21 +326,19 @@ function StudentView({
           );
           const sub = submitted[a.id];
           return (
-            <li key={a.id} className="rounded-lg border border-slate-800 p-3">
+            <li key={a.id} className="rounded-lg border border-line p-3">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{a.title}</div>
                   {a.instructions && (
-                    <p className="mt-1 text-sm whitespace-pre-wrap text-slate-300">
-                      {a.instructions}
-                    </p>
+                    <p className="mt-1 text-sm whitespace-pre-wrap text-ink">{a.instructions}</p>
                   )}
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted">
                     {sub ? `Submitted ${sub.submittedAt.toLocaleString()}` : 'Not submitted yet'}
                   </p>
                 </div>
                 <button
-                  className="rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white"
+                  className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-on-accent"
                   onClick={() => void start(a)}
                 >
                   {started ? 'Continue' : 'Start'}

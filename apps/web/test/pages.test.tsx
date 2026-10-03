@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { createMemoryServices, type AppServices } from '@codetochip/data';
 import { Layout } from '../src/app/Layout.tsx';
@@ -18,7 +18,7 @@ const renderAt = (path: string, services: AppServices = createMemoryServices()) 
             {
               element: <Layout />,
               children: [
-                { index: true, element: <HomePage /> },
+                { path: 'projects', element: <HomePage /> },
                 { path: 'help', element: <HelpPage /> },
                 { path: 'ide', element: <p>IDE</p> },
               ],
@@ -31,9 +31,9 @@ const renderAt = (path: string, services: AppServices = createMemoryServices()) 
   );
 
 describe('home page', () => {
-  it('offers bundled examples and editor-managed examples for the chosen board', async () => {
+  it('offers bundled and editor-managed examples as templates for the chosen board', async () => {
     renderAt(
-      '/',
+      '/projects',
       createMemoryServices(null, {
         examples: [
           {
@@ -64,10 +64,10 @@ describe('home page', () => {
       files: [{ path: 'a.ino', content: '' }],
     });
     window.confirm = () => true;
-    renderAt('/', services);
+    renderAt('/projects', services);
     expect(await screen.findByText('My blink')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Delete My blink' }));
-    await screen.findByText('Examples');
+    await waitFor(() => expect(screen.queryByText('My blink')).toBeNull());
     expect(await services.projects.listMine()).toEqual([]);
   });
 });
@@ -81,7 +81,7 @@ describe('account bar', () => {
       boardId: 'aries-v3',
       files: [{ path: 'a.ino', content: '' }],
     });
-    renderAt('/', services);
+    renderAt('/projects', services);
     fireEvent.click(await screen.findByRole('button', { name: 'Sign in to keep your work' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
     expect(await screen.findByText('Test User')).toBeTruthy();

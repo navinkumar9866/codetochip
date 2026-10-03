@@ -1,11 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import {
+  ChevronRight,
+  CircleCheck,
+  CircleDashed,
+  CircleX,
+  Cpu,
+  Download,
+  FolderTree,
+  ListChecks,
+  Send,
+  Terminal,
+  Upload,
+  Usb,
+  X,
+} from 'lucide-react';
 import { boards, flashOptionsFor, getBoard, type BoardManifest } from '@codetochip/boards';
 import { validateProjectInput, type AssignmentRef, type ProjectFile } from '@codetochip/data';
 import { detectTransport, getProtocol, type FlashProgress } from '@codetochip/flasher';
-import { compileOnServer, type CompileOutcome, type CompileProgress } from '../compile/client.ts';
+import {
+  compileOnServer,
+  type CompileOutcome,
+  type CompileProgress,
+  type Diagnostic,
+} from '../compile/client.ts';
+import { TopBarEnd, TopBarModes, TopBarStart } from '../app/top-bar.tsx';
 import { builtinExamples, starterFiles } from '../examples/builtin.ts';
 import { CodeEditor, type EditorApi } from '../ide/CodeEditor.tsx';
+import { ComingSoon, type IdeMode } from '../ide/ComingSoon.tsx';
+import { Explorer } from '../ide/Explorer.tsx';
+import { ProblemsPanel } from '../ide/ProblemsPanel.tsx';
 import { ShareButton } from '../ide/ShareButton.tsx';
 import { SymbolBar } from '../ide/SymbolBar.tsx';
 import { useMediaQuery } from '../ide/use-media-query.ts';
@@ -13,6 +37,7 @@ import { useDevice, useDeviceState } from '../ide/device-context.tsx';
 import { SerialMonitor } from '../ide/SerialMonitor.tsx';
 import { useServices } from '../services.tsx';
 import { useTelemetry } from '../telemetry.ts';
+import { Info } from '../ui/Info.tsx';
 
 interface Draft {
   id: string | null;
@@ -49,17 +74,21 @@ export function IdePage() {
   const [save, setSave] = useState<SaveState>('idle');
   const [busy, setBusy] = useState<Busy>(null);
   const [outcome, setOutcome] = useState<CompileOutcome | null>(null);
+  // What the last Check was built from, to tell when its problems are out of date.
+  const [checkedKey, setCheckedKey] = useState('');
+  const [mode, setMode] = useState<IdeMode>('build');
+  const [explorerOpen, setExplorerOpen] = useState(true);
   const [message, setMessage] = useState<{
     kind: 'error' | 'info' | 'success';
     text: string;
   } | null>(null);
   const [flash, setFlash] = useState<FlashProgress | null>(null);
-  const [panel, setPanel] = useState<'output' | 'serial'>('output');
-  // Phones (< 1024 px) show one view at a time, switched from a bottom bar.
-  const wide = useMediaQuery('(min-width: 1024px)');
-  const [phoneView, setPhoneView] = useState<'code' | 'output' | 'serial'>('code');
+  const [panel, setPanel] = useState<'problems' | 'serial'>('problems');
+  // Phones (< 760 px) show one view at a time, switched from a bottom bar.
+  const wide = useMediaQuery('(min-width: 760px)');
+  const [phoneView, setPhoneView] = useState<'code' | 'problems' | 'serial'>('code');
   const editorApi = useRef<EditorApi | null>(null);
-  const show = (p: 'output' | 'serial') => {
+  const show = (p: 'problems' | 'serial') => {
     setPanel(p);
     setPhoneView(p);
   };
@@ -97,7 +126,7 @@ export function IdePage() {
           const example = builtin ?? remote;
           next = {
             id: null,
-            name: example?.title ?? 'Untitled sketch',
+            name: search.get('name') || example?.title || 'Untitled sketch',
             boardId,
             files: example?.files.map((f) => ({ ...f })) ?? starterFiles(),
           };
@@ -191,7 +220,7 @@ export function IdePage() {
     if (!draft) return null;
     if (built.current?.key === buildKey) return built.current.binary;
     setBusy({ kind: 'compile', progress: { state: 'submitting' } });
-    setPanel('output');
+    setPanel('problems');
     const elapsed = stopwatch();
     const compileEvent = { kind: 'compile' as const, board: draft.boardId, mode: modeId };
     try {
@@ -200,6 +229,7 @@ export function IdePage() {
         { onProgress: (progress) => setBusy({ kind: 'compile', progress }) },
       );
       setOutcome(r.outcome);
+      setCheckedKey(buildKey);
       record({
         ...compileEvent,
         ok: r.outcome.ok,
@@ -322,12 +352,12 @@ export function IdePage() {
 
   if (loadError) {
     return (
-      <p role="alert" className="p-4 text-red-400">
+      <p role="alert" className="p-4 text-err-ink">
         {loadError}
       </p>
     );
   }
-  if (!draft || !board) return <p className="p-4 text-slate-400">Loading…</p>;
+  if (!draft || !board) return <p className="p-4 text-muted">Loading…</p>;
 
   const file = draft.files[active] ?? draft.files[0]!;
   const connected = deviceState !== 'closed';
@@ -336,21 +366,93 @@ export function IdePage() {
     flash?.stage === 'waiting-for-bootloader' &&
     board.flash.reset.method === 'manual' &&
     flash.message === board.flash.reset.prompt;
+  const stale = !!outcome && checkedKey !== buildKey;
+  const problems = outcome?.diagnostics.filter((d) => d.severity !== 'note') ?? [];
+  const errors = stale ? 0 : problems.filter((d) => d.severity === 'error').length;
+  const suggestions = stale ? 0 : problems.length - errors;
+  const errorFiles = new Set(
+    stale ? [] : problems.filter((d) => d.severity === 'error').map((d) => d.file),
+  );
+  const uploadLocked = !!busy || !device || errors > 0;
+  const check = () => {
+    built.current = null;
+    void ensureBuilt();
+  };
+  const jump = (d: Diagnostic) => {
+    const i = draft.files.findIndex((f) => f.path === d.file);
+    if (i >= 0) setActive(i);
+    setPhoneView('code');
+    // Wait for the editor to show that file before moving the cursor.
+    requestAnimationFrame(() => editorApi.current?.goTo(d.line));
+  };
+  const addFile = (path: string) => {
+    edit({ files: [...draft.files, { path, content: '' }] });
+    setActive(draft.files.length);
+  };
+  const removeFile = (i: number) => {
+    edit({ files: draft.files.filter((_, j) => j !== i) });
+    setActive(0);
+  };
+  const stage = busy ? stageOf(busy, flash, board.name) : null;
+
+  const problemsTab = (
+    <>
+      <ListChecks size={16} />
+      Problems
+      <span className={`tag ${errors ? 'tag-err' : outcome && !stale ? 'tag-ok' : 'tag-neutral'}`}>
+        {stale || !outcome ? '–' : problems.length}
+      </span>
+    </>
+  );
+  const serialTab = (
+    <>
+      <Terminal size={16} />
+      Serial monitor
+      <span
+        aria-hidden
+        className={`size-2 rounded-full ${connected ? 'bg-ok' : 'bg-line-strong'}`}
+      />
+    </>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-3 py-2">
+      <TopBarStart>
+        <ChevronRight size={16} className="text-muted" aria-hidden />
         <input
           aria-label="Project name"
-          className="w-44 rounded bg-transparent px-1 font-medium hover:bg-slate-800 focus:bg-slate-800"
+          className="input w-40 font-semibold sm:w-48"
           value={draft.name}
           onChange={(e) => edit({ name: e.target.value })}
         />
         <SaveBadge state={save} />
-        <div className="flex w-full items-center gap-2 lg:ml-auto lg:w-auto">
+      </TopBarStart>
+      {wide && (
+        <TopBarModes>
+          <div
+            role="group"
+            aria-label="Mode"
+            className="flex gap-0.5 rounded-lg border border-line bg-raised p-[3px]"
+          >
+            {(['learn', 'build', 'simulate', 'deploy'] as const).map((m) => (
+              <button
+                key={m}
+                aria-pressed={mode === m}
+                className={`rounded-md px-3.5 py-1 text-sm font-medium capitalize ${mode === m ? 'bg-sel text-ink' : 'text-muted hover:text-ink'}`}
+                onClick={() => setMode(m)}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </TopBarModes>
+      )}
+      <TopBarEnd>
+        <label className="flex items-center gap-1.5 text-[13px] font-semibold">
+          <Cpu size={16} aria-hidden />
           <select
             aria-label="Board"
-            className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1.5 text-sm lg:flex-none"
+            className="input max-w-44"
             value={draft.boardId}
             onChange={(e) => {
               const b = getBoard(e.target.value)!;
@@ -364,256 +466,415 @@ export function IdePage() {
               </option>
             ))}
           </select>
-          <select
-            aria-label="Upload mode"
-            className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1.5 text-sm lg:flex-none"
-            value={modeId}
-            onChange={(e) => setModeId(e.target.value)}
-          >
-            {board.flash.modes.map((m) => {
-              const supported = protocol?.targets.includes(m.target) ?? false;
-              return (
-                <option key={m.id} value={m.id} disabled={!supported}>
-                  {m.label}
-                  {supported ? '' : ' (coming soon)'}
-                </option>
-              );
-            })}
-          </select>
-          {wide && (
-            <>
-              <button
-                className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium disabled:opacity-40"
-                disabled={!!busy}
-                onClick={() => {
-                  built.current = null;
-                  void ensureBuilt();
-                }}
-              >
-                {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Compile'}
-              </button>
-              <button
-                className="rounded bg-sky-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-                disabled={!!busy || !device}
-                onClick={() => void upload()}
-              >
-                {busy?.kind === 'upload' ? 'Uploading…' : 'Upload'}
-              </button>
-              {busy?.kind === 'upload' && (
-                <button
-                  className="rounded px-2 py-1.5 text-sm text-slate-300"
-                  onClick={() => device?.cancelFlash()}
-                >
-                  Cancel
-                </button>
-              )}
-            </>
-          )}
-          {draft.assignment && (
-            <button
-              className="rounded bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-              disabled={!!busy}
-              onClick={() => void submit()}
-            >
-              Submit to class
-            </button>
-          )}
-          <ShareButton project={{ name: draft.name, boardId: draft.boardId, files: draft.files }} />
-          <button
-            className="rounded px-2 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-40"
-            disabled={!!busy}
-            aria-label="Download .bin"
-            onClick={() => void download()}
-          >
-            <span aria-hidden className="lg:hidden">
-              ⬇ .bin
-            </span>
-            <span className="hidden lg:inline">Download .bin</span>
-          </button>
-        </div>
-      </div>
-
-      {waitingForReset && (
-        <div role="status" className="bg-amber-500 px-4 py-3 text-center font-semibold text-black">
-          {board.flash.reset.method === 'manual' ? board.flash.reset.prompt : ''}
-          {!wide && (
-            <span className="block text-sm font-normal">
-              Keep this screen open until it finishes.
-            </span>
-          )}
-        </div>
-      )}
-      {busy?.kind === 'upload' && flash?.stage === 'transferring' && flash.totalBytes ? (
-        <progress
-          aria-label="Upload progress"
-          className="h-1 w-full"
-          value={flash.bytesSent ?? 0}
-          max={flash.totalBytes}
-        />
-      ) : null}
-      {message && (
-        <p
-          role={message.kind === 'error' ? 'alert' : 'status'}
-          className={`px-4 py-2 text-sm ${
-            message.kind === 'error'
-              ? 'bg-red-950 text-red-300'
-              : message.kind === 'success'
-                ? 'bg-emerald-950 text-emerald-300'
-                : 'bg-slate-800'
-          }`}
-        >
-          {message.text}
-        </p>
-      )}
-      {!connected && detectTransport().kind === 'webusb' && (
-        <p className="bg-slate-900 px-4 py-2 text-sm text-slate-300">
-          Connecting with a phone?{' '}
-          <Link to="/help/android" className="text-sky-400 underline">
-            See what you need
-          </Link>
-        </p>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section
-          className={`min-h-0 flex-1 flex-col ${wide || phoneView === 'code' ? 'flex' : 'hidden'}`}
-        >
-          <FileTabs
-            files={draft.files}
-            active={active}
-            onSelect={setActive}
-            onAdd={(path) => {
-              edit({ files: [...draft.files, { path, content: '' }] });
-              setActive(draft.files.length);
-            }}
-            onRemove={(i) => {
-              edit({ files: draft.files.filter((_, j) => j !== i) });
-              setActive(0);
-            }}
+          <Info
+            title="Board"
+            text="The board you are programming. Pick the one printed on your hardware: which pins and features you can use changes from board to board."
           />
-          <div className="min-h-0 flex-1">
-            <CodeEditor
-              apiRef={editorApi}
-              value={file.content}
-              diagnostics={diagnosticsFor(file.path)}
-              onChange={(content) =>
-                edit({ files: draft.files.map((f, i) => (i === active ? { ...f, content } : f)) })
-              }
-            />
-          </div>
-        </section>
-
-        <section
-          className={`min-h-0 flex-1 flex-col lg:w-[28rem] lg:flex-none lg:border-l lg:border-slate-800 ${
-            wide || phoneView !== 'code' ? 'flex' : 'hidden'
-          }`}
-        >
-          <div
-            className="flex items-center gap-1 border-b border-slate-800 px-2 text-sm"
-            role="tablist"
+        </label>
+        <span className="flex items-center gap-1.5">
+          <button
+            disabled={!device}
+            className={`flex max-w-56 items-center gap-2 rounded-full border border-line px-3 py-1 text-sm font-medium ${connected ? 'bg-ok-soft text-ok-ink' : 'bg-err-soft text-err-ink'}`}
+            onClick={() => void (connected ? device?.disconnect() : connect())}
           >
-            {(wide ? (['output', 'serial'] as const) : []).map((p) => (
-              <button
-                key={p}
-                role="tab"
-                aria-selected={panel === p}
-                className={`px-3 py-2 ${panel === p ? 'border-b-2 border-sky-500 text-white' : 'text-slate-400'}`}
-                onClick={() => show(p)}
-              >
-                {p === 'output' ? 'Output' : 'Serial monitor'}
-              </button>
-            ))}
-            <span className="ml-auto pr-2 text-xs">
-              {connected ? (
-                <button className="text-emerald-400" onClick={() => void device?.disconnect()}>
-                  ● Connected · Disconnect
-                </button>
-              ) : (
-                <button
-                  className="text-slate-400 hover:text-white"
-                  onClick={() => void connect()}
-                  disabled={!device}
+            <Usb size={16} className="flex-none" aria-hidden />
+            <span className="truncate">
+              {connected ? `${board.name} · connected` : 'Connect board'}
+            </span>
+          </button>
+          <Info
+            align="right"
+            title="Connection"
+            text="Your board shows up as a USB serial port when plugged in. You need a data cable: charge-only cables won’t work. Click to connect or disconnect."
+          />
+        </span>
+      </TopBarEnd>
+
+      {mode !== 'build' ? (
+        <ComingSoon mode={mode} onBuild={() => setMode('build')} />
+      ) : (
+        <>
+          <div className="flex flex-none flex-wrap items-stretch border-b border-line">
+            <Cell>
+              <Usb size={16} aria-hidden />
+              <div className="flex flex-col leading-tight">
+                <span className="kicker text-[11px]">Port</span>
+                <span className="font-semibold">
+                  {connected ? 'USB · connected' : 'not connected'}
+                </span>
+              </div>
+            </Cell>
+            <Cell>
+              <label className="flex flex-col leading-tight">
+                <span className="kicker flex items-center gap-1.5 text-[11px]">
+                  Upload to
+                  <Info
+                    title="Where the program goes"
+                    text="Some boards can run a program from memory that is wiped when the power goes off (quick for trying things), or save it so it runs again after a restart."
+                  />
+                </span>
+                <select
+                  aria-label="Upload mode"
+                  className="bg-transparent font-semibold"
+                  value={modeId}
+                  onChange={(e) => setModeId(e.target.value)}
                 >
-                  ○ Connect board
+                  {board.flash.modes.map((m) => {
+                    const supported = protocol?.targets.includes(m.target) ?? false;
+                    return (
+                      <option key={m.id} value={m.id} disabled={!supported}>
+                        {m.label}
+                        {supported ? '' : ' (coming soon)'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            </Cell>
+            <Cell
+              className={
+                !outcome || stale
+                  ? ''
+                  : errors
+                    ? 'bg-err-soft text-err-ink'
+                    : 'bg-ok-soft text-ok-ink'
+              }
+            >
+              {!outcome || stale ? (
+                <CircleDashed size={16} className="text-muted" aria-hidden />
+              ) : errors ? (
+                <CircleX size={16} aria-hidden />
+              ) : (
+                <CircleCheck size={16} aria-hidden />
+              )}
+              <span className="font-semibold">
+                {!outcome
+                  ? 'Not checked yet'
+                  : stale
+                    ? 'Changed since the last check'
+                    : errors
+                      ? `${errors} error${errors > 1 ? 's' : ''} block upload`
+                      : 'No errors'}
+              </span>
+            </Cell>
+            <div className="flex-1" />
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+              {wide && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <button className="btn btn-ghost" disabled={!!busy} onClick={check}>
+                      {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Check'}
+                      <ListChecks size={16} />
+                    </button>
+                    <Info
+                      title="Check"
+                      text="Compiles your program on our server to find mistakes. Nothing is sent to the board."
+                    />
+                  </span>
+                  {busy?.kind === 'upload' ? (
+                    <button className="btn btn-secondary" onClick={() => device?.cancelFlash()}>
+                      Cancel upload
+                      <X size={16} />
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <button
+                        className="btn btn-primary"
+                        disabled={uploadLocked}
+                        onClick={() => void upload()}
+                      >
+                        Upload
+                        <Upload size={16} />
+                      </button>
+                      <Info
+                        align="right"
+                        title="Upload"
+                        text="Turns your program into machine code and writes it to the board, which then runs it straight away. Locked while the last check found errors."
+                      />
+                    </span>
+                  )}
+                </>
+              )}
+              {draft.assignment && (
+                <button
+                  className="btn btn-secondary"
+                  disabled={!!busy}
+                  onClick={() => void submit()}
+                >
+                  Submit to class
+                  <Send size={16} />
                 </button>
               )}
-            </span>
+              <ShareButton
+                project={{ name: draft.name, boardId: draft.boardId, files: draft.files }}
+              />
+              <button
+                className="btn btn-ghost"
+                disabled={!!busy}
+                aria-label="Download .bin"
+                onClick={() => void download()}
+              >
+                <span className="hidden lg:inline">.bin</span>
+                <Download size={16} />
+              </button>
+            </div>
           </div>
-          <div className="min-h-0 flex-1 p-2">
-            {(wide ? panel : phoneView) === 'output' ? (
-              <Output
-                outcome={outcome}
-                onJump={(path) => {
-                  setActive(
-                    Math.max(
-                      0,
-                      draft.files.findIndex((f) => f.path === path),
-                    ),
-                  );
-                  setPhoneView('code');
-                }}
-              />
-            ) : (
-              <SerialMonitor
-                device={device}
-                connected={connected}
-                defaultBaud={board.serial.baudRate}
-                onConnect={() => void connect()}
-              />
+
+          {waitingForReset && (
+            <div role="status" className="bg-led px-5 py-3 font-semibold text-[#1a1300]">
+              {board.flash.reset.method === 'manual' ? board.flash.reset.prompt : ''}
+              {!wide && (
+                <span className="block text-sm font-normal">
+                  Keep this screen open until it finishes.
+                </span>
+              )}
+            </div>
+          )}
+          {stage && !waitingForReset && (
+            <div className="flex flex-none flex-col gap-1.5 bg-accent-soft px-5 py-3 text-accent-ink">
+              <span className="font-semibold">{stage.text}</span>
+              <div className="h-2 bg-raised-2">
+                <div
+                  className="h-2 bg-accent transition-[width]"
+                  style={{ width: `${stage.pct}%` }}
+                />
+              </div>
+              {busy?.kind === 'upload' && flash?.stage === 'transferring' && flash.totalBytes ? (
+                <progress
+                  aria-label="Upload progress"
+                  className="sr-only"
+                  value={flash.bytesSent ?? 0}
+                  max={flash.totalBytes}
+                />
+              ) : null}
+            </div>
+          )}
+          {message && (
+            <p
+              role={message.kind === 'error' ? 'alert' : 'status'}
+              className={`px-5 py-2 text-sm ${
+                message.kind === 'error'
+                  ? 'bg-err-soft text-err-ink'
+                  : message.kind === 'success'
+                    ? 'bg-ok-soft text-ok-ink'
+                    : 'bg-raised-2'
+              }`}
+            >
+              {message.text}
+            </p>
+          )}
+          {!connected && detectTransport().kind === 'webusb' && (
+            <p className="bg-panel px-5 py-2 text-sm">
+              Connecting with a phone?{' '}
+              <Link to="/help/android" className="text-accent-ink underline">
+                See what you need
+              </Link>
+            </p>
+          )}
+
+          <div className="flex min-h-0 flex-1">
+            {wide &&
+              (explorerOpen ? (
+                <Explorer
+                  name={draft.name}
+                  projectId={draft.id}
+                  files={draft.files}
+                  active={active}
+                  errorFiles={errorFiles}
+                  onSelect={setActive}
+                  onAdd={addFile}
+                  onRemove={removeFile}
+                  onHide={() => setExplorerOpen(false)}
+                />
+              ) : (
+                <div className="flex w-10 flex-none flex-col items-center border-r border-line bg-panel pt-2">
+                  <button
+                    aria-label="Show explorer"
+                    title="Show explorer"
+                    className="flex size-[30px] items-center justify-center rounded-sm text-muted hover:bg-raised-2"
+                    onClick={() => setExplorerOpen(true)}
+                  >
+                    <FolderTree size={16} />
+                  </button>
+                </div>
+              ))}
+            <section
+              aria-label="Code"
+              className={`min-h-0 min-w-0 flex-1 flex-col bg-panel ${wide || phoneView === 'code' ? 'flex' : 'hidden'}`}
+            >
+              {wide ? (
+                <div className="flex flex-none items-stretch border-b border-line">
+                  <span className="flex items-center gap-1.5 bg-panel px-3.5 py-2 font-mono text-[13px] shadow-[inset_0_-2px_0_var(--accent)]">
+                    {file.path}
+                  </span>
+                  <span className="ml-auto flex items-center px-3.5 text-xs text-muted">
+                    C++ · Arduino
+                  </span>
+                </div>
+              ) : (
+                <FileTabs
+                  files={draft.files}
+                  active={active}
+                  onSelect={setActive}
+                  onAdd={addFile}
+                  onRemove={removeFile}
+                />
+              )}
+              <div className="min-h-0 flex-1">
+                <CodeEditor
+                  apiRef={editorApi}
+                  value={file.content}
+                  diagnostics={diagnosticsFor(file.path)}
+                  onChange={(content) =>
+                    edit({
+                      files: draft.files.map((f, i) => (i === active ? { ...f, content } : f)),
+                    })
+                  }
+                />
+              </div>
+            </section>
+            {!wide && phoneView !== 'code' && (
+              <section className="flex min-h-0 flex-1 flex-col overflow-auto">
+                {phoneView === 'problems' ? (
+                  <ProblemsPanel outcome={outcome} stale={stale} onJump={jump} />
+                ) : (
+                  <SerialMonitor
+                    device={device}
+                    connected={connected}
+                    boardName={board.name}
+                    defaultBaud={board.serial.baudRate}
+                    onConnect={() => void connect()}
+                    tall
+                  />
+                )}
+              </section>
             )}
           </div>
-        </section>
-      </div>
-      {!wide && phoneView === 'code' && <SymbolBar editor={editorApi} />}
-      {!wide && (
-        <nav
-          aria-label="Editor"
-          className="grid grid-cols-5 border-t border-slate-800 bg-slate-900 text-xs"
-        >
-          {(
-            [
-              ['code', 'Code'],
-              ['output', 'Output'],
-              ['serial', 'Monitor'],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              aria-pressed={phoneView === v}
-              className={`py-3 ${phoneView === v ? 'text-white' : 'text-slate-400'}`}
-              onClick={() => (v === 'code' ? setPhoneView('code') : show(v))}
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            className="m-1 rounded bg-slate-700 font-medium disabled:opacity-40"
-            disabled={!!busy}
-            onClick={() => {
-              built.current = null;
-              void ensureBuilt();
-            }}
-          >
-            {busy?.kind === 'compile' ? '…' : 'Compile'}
-          </button>
-          {busy?.kind === 'upload' ? (
-            <button
-              className="m-1 rounded bg-slate-600 font-medium"
-              onClick={() => device?.cancelFlash()}
-            >
-              Cancel
-            </button>
-          ) : (
-            <button
-              className="m-1 rounded bg-sky-600 font-medium text-white disabled:opacity-40"
-              disabled={!!busy || !device}
-              onClick={() => void upload()}
-            >
-              Upload
-            </button>
+
+          {wide && (
+            <div className="flex flex-none flex-col border-t border-line">
+              <div
+                role="tablist"
+                aria-label="Bottom panel"
+                className="flex flex-wrap items-center gap-1 border-b border-line px-3 py-1.5"
+              >
+                {(
+                  [
+                    ['problems', problemsTab],
+                    ['serial', serialTab],
+                  ] as const
+                ).map(([p, label]) => (
+                  <button
+                    key={p}
+                    role="tab"
+                    aria-selected={panel === p}
+                    className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold ${panel === p ? 'bg-sel text-ink' : 'text-muted hover:text-ink'}`}
+                    onClick={() => show(p)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <Info
+                  title="Problems and Serial monitor"
+                  text="Problems lists mistakes in your program. The Serial monitor shows what your program prints while it runs on the board."
+                />
+              </div>
+              <div className="max-h-72 overflow-auto">
+                {panel === 'problems' ? (
+                  <ProblemsPanel outcome={outcome} stale={stale} onJump={jump} />
+                ) : (
+                  <SerialMonitor
+                    device={device}
+                    connected={connected}
+                    boardName={board.name}
+                    defaultBaud={board.serial.baudRate}
+                    onConnect={() => void connect()}
+                  />
+                )}
+              </div>
+            </div>
           )}
-        </nav>
+
+          {wide ? (
+            <div className="flex flex-none flex-wrap items-center gap-x-6 gap-y-1.5 border-t border-line bg-raised-2 px-5 py-1.5 text-xs">
+              <span className="flex items-center gap-1.5">
+                <span
+                  aria-hidden
+                  className={`size-2 ${errors ? 'bg-err' : outcome && !stale ? 'bg-ok' : 'bg-line-strong'}`}
+                />
+                {errors} error{errors === 1 ? '' : 's'} · {suggestions} suggestion
+                {suggestions === 1 ? '' : 's'}
+              </span>
+              <span>{board.name}</span>
+              <span>{connected ? 'USB · connected' : 'not connected'}</span>
+              <button className="ml-auto flex items-center gap-1.5" onClick={() => show('serial')}>
+                <Terminal size={13} />
+                Serial monitor
+                <span
+                  aria-hidden
+                  className={`size-1.5 rounded-full ${connected ? 'bg-ok' : 'bg-line-strong'}`}
+                />
+              </button>
+            </div>
+          ) : (
+            <>
+              {phoneView === 'code' && <SymbolBar editor={editorApi} />}
+              <nav
+                aria-label="Editor"
+                className="grid flex-none grid-cols-5 border-t border-line bg-ground text-xs font-semibold"
+              >
+                {(
+                  [
+                    ['code', 'Code'],
+                    ['problems', 'Problems'],
+                    ['serial', 'Serial'],
+                  ] as const
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    aria-pressed={phoneView === v}
+                    className={`min-h-[52px] ${phoneView === v ? 'bg-sel text-ink' : 'text-muted'}`}
+                    onClick={() => (v === 'code' ? setPhoneView('code') : show(v))}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  className="btn btn-secondary m-1 justify-center"
+                  disabled={!!busy}
+                  onClick={check}
+                >
+                  {busy?.kind === 'compile' ? '…' : 'Check'}
+                </button>
+                {busy?.kind === 'upload' ? (
+                  <button
+                    className="btn btn-secondary m-1 justify-center"
+                    onClick={() => device?.cancelFlash()}
+                  >
+                    Cancel
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary m-1 justify-center"
+                    disabled={uploadLocked}
+                    onClick={() => void upload()}
+                  >
+                    Upload
+                  </button>
+                )}
+              </nav>
+            </>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+function Cell({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`flex items-center gap-2.5 border-r border-line px-5 py-2.5 ${className}`}>
+      {children}
     </div>
   );
 }
@@ -623,19 +884,41 @@ const compileLabel = (p: CompileProgress) =>
     ? p.position > 0
       ? `Queued (${p.position} ahead)…`
       : 'Starting…'
-    : 'Compiling…';
+    : 'Checking…';
+
+/** The banner under the toolbar while checking or uploading: what's happening, how far along. */
+function stageOf(busy: NonNullable<Busy>, flash: FlashProgress | null, boardName: string) {
+  if (busy.kind === 'compile') {
+    const p = busy.progress;
+    if (p.state === 'queued' && p.position > 0)
+      return { text: `Waiting for a free compiler (${p.position} ahead)…`, pct: 5 };
+    return { text: 'Compiling your program…', pct: p.state === 'running' ? 15 : 8 };
+  }
+  switch (flash?.stage) {
+    case 'transferring': {
+      const done = flash.totalBytes ? (flash.bytesSent ?? 0) / flash.totalBytes : 0;
+      return { text: `Writing to the board… ${Math.round(done * 100)}%`, pct: 30 + done * 60 };
+    }
+    case 'finishing':
+    case 'done':
+      return { text: 'Starting your program…', pct: 95 };
+    default:
+      return { text: `Connecting to ${boardName}…`, pct: 25 };
+  }
+}
 
 function SaveBadge({ state }: { state: SaveState }) {
   if (state === 'idle') return null;
-  if (state === 'saving') return <span className="text-xs text-slate-400">Saving…</span>;
-  if (state === 'saved') return <span className="text-xs text-slate-500">Saved</span>;
+  if (state === 'saving') return <span className="text-xs text-muted">Saving…</span>;
+  if (state === 'saved') return <span className="text-xs text-muted">Saved</span>;
   return (
-    <span role="alert" className="text-xs text-red-400">
+    <span role="alert" className="text-xs text-err-ink">
       Not saved: {state.error}
     </span>
   );
 }
 
+/** Phones: the files as a scrolling strip of tabs above the editor. */
 function FileTabs({
   files,
   active,
@@ -652,18 +935,18 @@ function FileTabs({
   const [adding, setAdding] = useState<string | null>(null);
   return (
     <div
-      className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-800 bg-slate-900 px-2 text-sm whitespace-nowrap"
+      className="flex flex-none items-stretch overflow-x-auto border-b border-line bg-ground text-[13px] whitespace-nowrap"
       role="tablist"
     >
       {files.map((f, i) => (
         <span
           key={f.path}
-          className={`flex items-center ${i === active ? 'bg-slate-950 text-white' : 'text-slate-400'}`}
+          className={`flex items-center border-r border-line font-mono ${i === active ? 'bg-panel text-ink shadow-[inset_0_-2px_0_var(--accent)]' : 'text-muted'}`}
         >
           <button
             role="tab"
             aria-selected={i === active}
-            className="px-3 py-1.5"
+            className="px-3.5 py-2"
             onClick={() => onSelect(i)}
           >
             {f.path}
@@ -671,23 +954,21 @@ function FileTabs({
           {!f.path.endsWith('.ino') && (
             <button
               aria-label={`Remove ${f.path}`}
-              className="pr-2 text-slate-500 hover:text-red-400"
+              className="pr-2.5 text-muted hover:text-err"
               onClick={() => onRemove(i)}
             >
-              ×
+              <X size={13} />
             </button>
           )}
         </span>
       ))}
       {adding === null ? (
-        <button
-          className="px-2 py-1.5 text-slate-400 hover:text-white"
-          onClick={() => setAdding('')}
-        >
+        <button className="px-3 text-muted hover:text-ink" onClick={() => setAdding('')}>
           + File
         </button>
       ) : (
         <form
+          className="flex items-center px-1"
           onSubmit={(e) => {
             e.preventDefault();
             if (adding && !files.some((f) => f.path === adding)) onAdd(adding);
@@ -698,51 +979,13 @@ function FileTabs({
             autoFocus
             aria-label="New file name"
             placeholder="helper.h"
-            className="w-28 rounded bg-slate-800 px-2 py-1"
+            className="input w-28"
             value={adding}
             onChange={(e) => setAdding(e.target.value)}
             onBlur={() => setAdding(null)}
           />
         </form>
       )}
-    </div>
-  );
-}
-
-function Output({
-  outcome,
-  onJump,
-}: {
-  outcome: CompileOutcome | null;
-  onJump: (path: string) => void;
-}) {
-  if (!outcome) {
-    return (
-      <p className="text-sm text-slate-500">
-        Press Compile or Upload. Errors and build output appear here.
-      </p>
-    );
-  }
-  return (
-    <div className="flex h-full flex-col gap-2 text-sm">
-      {outcome.diagnostics.length > 0 && (
-        <ul className="space-y-1" aria-label="Problems">
-          {outcome.diagnostics.map((d, i) => (
-            <li key={i}>
-              <button className="text-left hover:underline" onClick={() => onJump(d.file)}>
-                <span className={d.severity === 'error' ? 'text-red-400' : 'text-amber-300'}>
-                  {d.severity}
-                </span>{' '}
-                {d.file}:{d.line}:{d.column} {d.message}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <pre className="min-h-0 flex-1 overflow-auto rounded bg-black p-2 font-mono text-xs text-slate-300">
-        {outcome.log || (outcome.ok ? 'Build succeeded.' : '')}
-        {outcome.cached ? '\n(Reused an identical recent build.)' : ''}
-      </pre>
     </div>
   );
 }

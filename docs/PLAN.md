@@ -335,6 +335,27 @@ export interface ToolchainAdapter {
 
 ---
 
+### UI redesign (2026-10-03): Build mode done; Learn, Simulate and Deploy are placeholders
+
+The web app now follows the "codetochip App" design (claude.ai design project "CodeToChip UI mockups"):
+six themes and three sizes (gear in the top bar), a Learn / Build / Simulate / Deploy switch,
+board picker and connection chip in the top bar, a Port · Upload to · status toolbar with
+Check and Upload, a file explorer, a Problems panel that explains each compiler error in plain
+words (What happened · Why it's wrong · How to fix, `apps/web/src/ide/explain.ts`), and a
+projects grid with templates on the home page. Upload stays locked while the last check found
+errors.
+
+Not built yet (each mode shows a "coming soon" panel that points back to Build):
+
+- **Learn**: 5-step lessons (pick board → plug in → build → simulate → send), a blocks editor
+  that stays in sync with the C++ code, and a "next step" coach with one-click fixes. Needs a
+  blocks ↔ code model and lesson content in the admin.
+- **Simulate**: needs Phase 6.
+- **Deploy**: many target devices, I/O monitor, Modbus map, HIL test, two-person approval and
+  staged rollout. Needs a device/fleet API; scope to be decided with Navin.
+- **One-click fixes** in the Problems panel: today it offers "Go to line"; real fixes need a
+  linter that knows the board's pins (from the manifest).
+
 ## Phase 6 — Simulator
 
 - `packages/emulator`: Rust → WASM, running in a Web Worker.

@@ -1,1 +1,288 @@
 @import 'tailwindcss';
+
+/*
+ * Design tokens from the CodeToChip UI mockups (docs: "codetochip App" design). Each theme sets
+ * the same variables on <html data-theme="…">; components only use the semantic utilities
+ * below (bg-panel, text-muted, border-line, bg-accent, text-err-ink, …), never raw colours.
+ * Density changes the root font size, so everything sized in rem scales with it.
+ */
+@theme inline {
+  --color-ground: var(--ground);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-raised-2: var(--raised-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-sel: var(--sel);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-err: var(--err);
+  --color-err-soft: var(--err-soft);
+  --color-err-line: var(--err-line);
+  --color-err-ink: var(--err-ink);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-ink: var(--ok-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-led: var(--led);
+  --color-dots: var(--dots);
+
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-code);
+
+  --radius-xs: calc(var(--r) - 4px);
+  --radius-sm: calc(var(--r) - 2px);
+  --radius-md: var(--r);
+  --radius-lg: calc(var(--r) + 2px);
+  --radius-xl: calc(var(--r) + 4px);
+  --radius-2xl: calc(var(--r) + 6px);
+}
+
+:root {
+  --font-body: 'Geist', system-ui, sans-serif;
+  --font-code: 'Geist Mono', ui-monospace, Menlo, monospace;
+  --r: 8px;
+}
+
+/* Light themes share the status colours. */
+:root[data-theme='light'],
+:root[data-theme='simple'],
+:root[data-theme='modern'],
+:root[data-theme='professional'],
+:root[data-theme='kids'] {
+  --ink: #14171c;
+  --muted: #5b6472;
+  --line: #e4e7ec;
+  --line-strong: #cfd4dc;
+  --err: #d93636;
+  --err-soft: #fdecec;
+  --err-line: #fbdcdc;
+  --err-ink: #a61f1f;
+  --warn: #b26b00;
+  --warn-soft: #fff3dc;
+  --led: #f5b400;
+  color-scheme: light;
+}
+
+:root,
+:root[data-theme='dark'] {
+  --ground: #0d0f13;
+  --panel: #12151b;
+  --raised: #181c24;
+  --raised-2: #20252f;
+  --line: #232833;
+  --line-strong: #313847;
+  --ink: #e9ecf2;
+  --muted: #9aa3b2;
+  --sel: #232936;
+  --accent: #34d3a0;
+  --accent-hover: #2bbd8e;
+  --accent-ink: #5fe6bb;
+  --accent-soft: rgb(52 211 160 / 0.12);
+  --on-accent: #06281d;
+  --err: #ff6b6b;
+  --err-soft: rgb(255 107 107 / 0.12);
+  --err-line: rgb(255 107 107 / 0.16);
+  --err-ink: #ff9b9b;
+  --ok: #34d3a0;
+  --ok-soft: rgb(52 211 160 / 0.12);
+  --ok-ink: #5fe6bb;
+  --warn: #f5b74a;
+  --warn-soft: rgb(245 183 74 / 0.14);
+  --led: #ffcc4d;
+  --dots: #262c38;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --ground: #f6f7f9;
+  --panel: #ffffff;
+  --raised: #ffffff;
+  --raised-2: #eef0f4;
+  --sel: #e8ebf0;
+  --accent: #0b8f6a;
+  --accent-hover: #09795a;
+  --accent-ink: #07664c;
+  --accent-soft: #e2f5ee;
+  --on-accent: #ffffff;
+  --ok: #0b8f6a;
+  --ok-soft: #e2f5ee;
+  --ok-ink: #07664c;
+  --dots: #d9dde4;
+}
+
+:root[data-theme='simple'] {
+  --ground: #ffffff;
+  --panel: #ffffff;
+  --raised: #ffffff;
+  --raised-2: #f4f4f5;
+  --sel: #f0f0f1;
+  --accent: #18181b;
+  --accent-hover: #3f3f46;
+  --accent-ink: #18181b;
+  --accent-soft: #f0f0f1;
+  --on-accent: #ffffff;
+  --ok: #15803d;
+  --ok-soft: #ecfdf3;
+  --ok-ink: #166534;
+  --dots: transparent;
+  --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --r: 4px;
+}
+
+:root[data-theme='modern'] {
+  --ground: #f7f7fb;
+  --panel: #ffffff;
+  --raised: #ffffff;
+  --raised-2: #f0f0f7;
+  --line: #e6e6f0;
+  --line-strong: #d5d5e3;
+  --sel: #ecebfd;
+  --accent: #5b4cf0;
+  --accent-hover: #4a3bdc;
+  --accent-ink: #4a3bdc;
+  --accent-soft: #efedff;
+  --on-accent: #ffffff;
+  --ok: #0f9f6e;
+  --ok-soft: #e3f7ef;
+  --ok-ink: #0b7a54;
+  --dots: #dcdcea;
+  --r: 12px;
+}
+
+:root[data-theme='professional'] {
+  --ground: #f3f5f8;
+  --panel: #ffffff;
+  --raised: #ffffff;
+  --raised-2: #eef1f5;
+  --ink: #0f1b2d;
+  --muted: #52607a;
+  --line: #dde2ea;
+  --line-strong: #c6cdd8;
+  --sel: #e6ecf7;
+  --accent: #1f4fd1;
+  --accent-hover: #1a43b3;
+  --accent-ink: #1a43b3;
+  --accent-soft: #e8eefc;
+  --on-accent: #ffffff;
+  --ok: #127a4b;
+  --ok-soft: #e4f4ec;
+  --ok-ink: #0e6440;
+  --dots: #dde2ea;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-code: 'IBM Plex Mono', 'Geist Mono', ui-monospace, monospace;
+  --r: 4px;
+}
+
+:root[data-theme='kids'] {
+  --ground: #fffdf7;
+  --panel: #ffffff;
+  --raised: #ffffff;
+  --raised-2: #fff4dc;
+  --ink: #1d1b3a;
+  --muted: #55527a;
+  --line: #efe6cf;
+  --line-strong: #d9cca8;
+  --sel: #e6efff;
+  --accent: #2f6bff;
+  --accent-hover: #1f55e0;
+  --accent-ink: #1f55e0;
+  --accent-soft: #e6efff;
+  --on-accent: #ffffff;
+  --ok: #1aa866;
+  --ok-soft: #dcf7e8;
+  --ok-ink: #0d6b41;
+  --err: #ff4b3e;
+  --err-soft: #ffe8e6;
+  --err-line: #ffd6d1;
+  --err-ink: #b82219;
+  --led: #ffc800;
+  --dots: #efe2bd;
+  --font-body: 'Nunito', system-ui, sans-serif;
+  --r: 16px;
+}
+
+:root {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-density='compact'] {
+  font-size: 14px;
+}
+:root[data-density='large'] {
+  font-size: 18px;
+}
+:root[data-theme='kids'] {
+  font-size: 17px;
+}
+:root[data-theme='kids'][data-density='compact'] {
+  font-size: 15px;
+}
+:root[data-theme='kids'][data-density='large'] {
+  font-size: 19px;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type='checkbox'],
+input[type='range'] {
+  accent-color: var(--accent);
+}
+
+@layer components {
+  /* Buttons: labels sit flush left with a trailing icon (design rule). */
+  .btn {
+    @apply inline-flex items-center justify-between gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-primary {
+    @apply bg-accent text-on-accent hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply border border-line-strong bg-raised-2 text-ink hover:bg-sel;
+  }
+  .btn-ghost {
+    @apply text-ink hover:bg-raised-2;
+  }
+  .input {
+    @apply min-h-8 rounded-md border border-line-strong bg-raised-2 px-2 py-1 text-sm text-ink placeholder:text-muted;
+  }
+  .kicker {
+    @apply text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+  .tag {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .tag-ok {
+    @apply bg-ok-soft text-ok-ink;
+  }
+  .tag-err {
+    @apply bg-err-soft text-err-ink;
+  }
+  .tag-neutral {
+    @apply bg-raised-2 text-muted;
+  }
+}
+
+:root[data-theme='kids'] .btn {
+  @apply min-h-11 font-extrabold;
+}

@@ -46,7 +46,7 @@ export function EmailLinkHandler() {
   if (needEmail) {
     return (
       <form
-        className="flex flex-wrap items-center gap-2 bg-slate-900 px-4 py-2 text-sm"
+        className="flex flex-wrap items-center gap-2 bg-panel px-4 py-2 text-sm"
         onSubmit={(e) => {
           e.preventDefault();
           void finish(email.trim());
@@ -57,11 +57,11 @@ export function EmailLinkHandler() {
           type="email"
           required
           aria-label="Email address for sign-in"
-          className="rounded bg-slate-800 px-2 py-1"
+          className="rounded bg-raised-2 px-2 py-1"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <button className="rounded bg-sky-600 px-3 py-1 text-white">Sign in</button>
+        <button className="rounded bg-accent px-3 py-1 text-on-accent">Sign in</button>
       </form>
     );
   }
@@ -69,7 +69,7 @@ export function EmailLinkHandler() {
   return (
     <p
       role={message.error ? 'alert' : 'status'}
-      className={`px-4 py-2 text-sm ${message.error ? 'bg-red-950 text-red-300' : 'bg-emerald-950 text-emerald-300'}`}
+      className={`px-4 py-2 text-sm ${message.error ? 'bg-err-soft text-err-ink' : 'bg-ok-soft text-ok-ink'}`}
     >
       {message.text}
     </p>

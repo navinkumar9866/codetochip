@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/test-results/**',
       'functions/lib/**',
       'functions/dist/**',
+      'docs/scratch/**',
     ],
   },
   js.configs.recommended,

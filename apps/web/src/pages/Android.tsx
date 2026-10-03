@@ -7,23 +7,23 @@ function OtgDiagram() {
       <title id="otg-title">
         Phone, then a USB OTG adapter, then the board’s USB cable, then the board
       </title>
-      <g fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-300">
+      <g fill="none" stroke="currentColor" strokeWidth="3" className="text-ink">
         {/* phone */}
         <rect x="20" y="30" width="80" height="140" rx="12" />
-        <rect x="30" y="45" width="60" height="100" rx="4" className="text-slate-500" />
-        <rect x="52" y="168" width="16" height="6" rx="2" className="text-sky-400" />
+        <rect x="30" y="45" width="60" height="100" rx="4" className="text-muted" />
+        <rect x="52" y="168" width="16" height="6" rx="2" className="text-accent-ink" />
         {/* OTG adapter */}
         <path d="M60 174v10h70" />
-        <rect x="130" y="172" width="70" height="24" rx="5" className="text-sky-400" />
+        <rect x="130" y="172" width="70" height="24" rx="5" className="text-accent-ink" />
         {/* cable */}
         <path d="M200 184h120c40 0 40-80 80-80h60" />
         {/* board */}
         <rect x="460" y="50" width="160" height="110" rx="8" />
-        <rect x="460" y="92" width="16" height="24" className="text-sky-400" />
-        <rect x="520" y="80" width="50" height="50" rx="4" className="text-slate-500" />
-        <circle cx="600" cy="68" r="5" className="text-emerald-400" />
+        <rect x="460" y="92" width="16" height="24" className="text-accent-ink" />
+        <rect x="520" y="80" width="50" height="50" rx="4" className="text-muted" />
+        <circle cx="600" cy="68" r="5" className="text-ok-ink" />
       </g>
-      <g fill="currentColor" className="text-[22px] text-slate-400">
+      <g fill="currentColor" className="text-[22px] text-muted">
         <text x="60" y="18" textAnchor="middle">
           Phone
         </text>
@@ -46,13 +46,13 @@ function OtgDiagram() {
 
 export function AndroidPage() {
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8 text-slate-200">
+    <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-8 text-ink">
       <h1 className="text-2xl font-semibold">Upload from an Android phone</h1>
       <OtgDiagram />
 
       <section>
         <h2 className="text-lg font-medium">What you need</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink">
           <li>An Android phone with the Chrome browser.</li>
           <li>
             A USB OTG adapter that fits your phone (usually USB-C to full-size USB), or one cable
@@ -64,7 +64,7 @@ export function AndroidPage() {
 
       <section>
         <h2 className="text-lg font-medium">Steps</h2>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-300">
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink">
           <li>Plug the OTG adapter into your phone, then the board’s cable into the adapter.</li>
           <li>The board’s power light should turn on: your phone powers it.</li>
           <li>Open CodeToChip in Chrome, open a sketch and tap Upload.</li>
@@ -75,7 +75,7 @@ export function AndroidPage() {
 
       <section>
         <h2 className="text-lg font-medium">If it doesn’t work</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-300">
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink">
           <li>
             No power light: your phone may not support OTG, or the adapter may be faulty. Try
             another adapter, or another phone.
@@ -96,7 +96,7 @@ export function AndroidPage() {
       </section>
 
       <p className="text-sm">
-        <Link to="/help" className="text-sky-400 underline">
+        <Link to="/help" className="text-accent-ink underline">
           More help
         </Link>
       </p>

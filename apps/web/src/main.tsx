@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { lazyServices, type AppServices } from '@codetochip/data';
 import type { FirebaseEnv } from '@codetochip/data/firebase';
+import { applyDisplay } from './app/display.ts';
 import { Layout } from './app/Layout.tsx';
 import { DeviceProvider } from './ide/device-context.tsx';
 import { AndroidPage } from './pages/Android.tsx';
@@ -10,6 +11,7 @@ import { HelpPage } from './pages/Help.tsx';
 import { ClassesPage } from './pages/Classes.tsx';
 import { ClassPage } from './pages/ClassPage.tsx';
 import { HomePage } from './pages/Home.tsx';
+import { LandingPage } from './pages/Landing.tsx';
 import { SharePage } from './pages/Share.tsx';
 import { ServicesProvider } from './services.tsx';
 import './index.css';
@@ -42,10 +44,11 @@ const firebase = () =>
   );
 
 const router = createBrowserRouter([
+  { index: true, element: <LandingPage /> },
   {
     element: <Layout />,
     children: [
-      { index: true, element: <HomePage /> },
+      { path: 'projects', element: <HomePage /> },
       { path: 'help', element: <HelpPage /> },
       { path: 'help/android', element: <AndroidPage /> },
       { path: 'classes', element: <ClassesPage /> },
@@ -57,7 +60,7 @@ const router = createBrowserRouter([
       {
         path: 'ide/:projectId?',
         element: (
-          <Suspense fallback={<p className="p-4 text-slate-400">Loading editor…</p>}>
+          <Suspense fallback={<p className="p-4 text-muted">Loading editor…</p>}>
             <IdePage />
           </Suspense>
         ),
@@ -74,6 +77,7 @@ const router = createBrowserRouter([
   },
 ]);
 
+applyDisplay();
 const services = (await memoryServices()) ?? lazyServices(firebase);
 createRoot(root).render(
   <StrictMode>

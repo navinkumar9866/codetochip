@@ -13,10 +13,10 @@ export function SymbolBar({ editor }: { editor: RefObject<EditorApi | null> }) {
     <div
       role="toolbar"
       aria-label="Symbols"
-      className="flex gap-1 overflow-x-auto border-t border-slate-800 bg-slate-900 px-1 py-1"
+      className="flex gap-1 overflow-x-auto border-t border-line bg-panel px-1 py-1"
     >
       <button
-        className="rounded bg-slate-800 px-3 py-2 font-mono text-sm"
+        className="rounded bg-raised-2 px-3 py-2 font-mono text-sm"
         onPointerDown={keep}
         onMouseDown={keep}
         onClick={() => editor.current?.tab()}
@@ -27,7 +27,7 @@ export function SymbolBar({ editor }: { editor: RefObject<EditorApi | null> }) {
         <button
           key={s}
           aria-label={`Insert ${s}`}
-          className="min-w-10 rounded bg-slate-800 px-2 py-2 font-mono text-base"
+          className="min-w-10 rounded bg-raised-2 px-2 py-2 font-mono text-base"
           onPointerDown={keep}
           onMouseDown={keep}
           onClick={() => editor.current?.insert(s)}

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Download, Send, Trash2 } from 'lucide-react';
 import type { Device } from '../device/device.ts';
+import { Info } from '../ui/Info.tsx';
 import { useSerialLines } from './device-context.tsx';
 
 const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400];
@@ -7,13 +9,18 @@ const BAUD_RATES = [9600, 19200, 38400, 57600, 115200, 230400];
 export function SerialMonitor({
   device,
   connected,
+  boardName,
   defaultBaud,
   onConnect,
+  tall = false,
 }: {
   device: Device | null;
   connected: boolean;
+  boardName: string;
   defaultBaud: number;
   onConnect: () => void;
+  /** Fill the screen (phones) instead of a fixed-height panel. */
+  tall?: boolean;
 }) {
   const { lines, clear } = useSerialLines();
   const [timestamps, setTimestamps] = useState(false);
@@ -52,23 +59,39 @@ export function SerialMonitor({
   };
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <select
-          aria-label="Baud rate"
-          className="rounded bg-slate-800 px-2 py-1"
-          value={baud}
-          onChange={(e) => void changeBaud(Number(e.target.value))}
-        >
-          {[...new Set([defaultBaud, ...BAUD_RATES])]
-            .sort((a, b) => a - b)
-            .map((b) => (
-              <option key={b} value={b}>
-                {b} baud
-              </option>
-            ))}
-        </select>
-        <label className="flex items-center gap-1">
+    <div className={`flex flex-col ${tall ? 'h-full min-h-0' : ''}`}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-2 text-[13px]">
+        <span className="flex items-center gap-2 font-semibold">
+          <span
+            aria-hidden
+            className={`size-2 rounded-full ${connected ? 'bg-ok' : 'bg-line-strong'}`}
+          />
+          {connected ? `Listening · ${boardName}` : 'Not listening · no board connected'}
+        </span>
+        <div className="flex-1" />
+        <label className="flex items-center gap-1.5 font-semibold">
+          Baud
+          <select
+            aria-label="Baud rate"
+            className="input py-0.5"
+            value={baud}
+            onChange={(e) => void changeBaud(Number(e.target.value))}
+          >
+            {[...new Set([defaultBaud, ...BAUD_RATES])]
+              .sort((a, b) => a - b)
+              .map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+          </select>
+          <Info
+            align="right"
+            title="Baud rate"
+            text="How fast the board and the computer talk. Both sides must use the same number, or the text comes out scrambled. Your program sets it with Serial.begin()."
+          />
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 font-semibold">
           <input
             type="checkbox"
             checked={timestamps}
@@ -76,7 +99,7 @@ export function SerialMonitor({
           />
           Timestamps
         </label>
-        <label className="flex items-center gap-1">
+        <label className="flex cursor-pointer items-center gap-1.5 font-semibold">
           <input
             type="checkbox"
             checked={autoscroll}
@@ -84,46 +107,51 @@ export function SerialMonitor({
           />
           Autoscroll
         </label>
-        <button className="text-slate-400 hover:text-slate-200" onClick={clear}>
+        <button className="btn btn-ghost px-2.5 py-1 text-[13px]" onClick={clear}>
           Clear
+          <Trash2 size={14} />
         </button>
         <button
-          className="text-slate-400 hover:text-slate-200"
+          className="btn btn-ghost px-2.5 py-1 text-[13px]"
           onClick={download}
           disabled={!lines.length}
         >
-          Download log
+          Save log
+          <Download size={14} />
         </button>
       </div>
       {error && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="bg-err-soft px-5 py-2 text-sm text-err-ink">
           {error}
         </p>
       )}
       <pre
         ref={box}
         data-testid="serial-output"
-        className="min-h-32 flex-1 overflow-auto rounded bg-black p-2 font-mono text-xs leading-5 text-green-300"
+        className={`overflow-auto bg-panel px-5 py-2.5 font-mono text-[13px] leading-[1.7] whitespace-pre-wrap ${tall ? 'min-h-32 flex-1' : 'h-48'}`}
       >
         {!connected && !lines.length ? (
-          <span className="text-slate-500">
-            Not connected.{' '}
-            <button className="text-sky-400 underline" onClick={onConnect}>
+          <span className="font-sans text-sm text-muted">
+            Nothing yet.{' '}
+            <button className="text-accent-ink underline" onClick={onConnect}>
               Connect the board
             </button>{' '}
-            to see its output.
+            or upload your program. Anything it prints with <code>Serial.println()</code> shows up
+            here.
           </span>
         ) : (
           lines.map((l) => (
-            <div key={l.id}>
-              {timestamps && <span className="text-slate-500">{l.at.toLocaleTimeString()} </span>}
-              {l.text}
+            <div key={l.id} className="flex gap-3.5">
+              {timestamps && (
+                <span className="flex-none text-muted">{l.at.toLocaleTimeString()}</span>
+              )}
+              <span>{l.text}</span>
             </div>
           ))
         )}
       </pre>
       <form
-        className="flex gap-2"
+        className="flex items-center gap-2 border-t border-line px-5 py-2"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
@@ -131,17 +159,15 @@ export function SerialMonitor({
       >
         <input
           aria-label="Send to board"
-          className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1 text-sm"
-          placeholder={connected ? 'Type and press Enter to send' : 'Connect the board to send'}
+          className="input min-w-0 flex-1"
+          placeholder={connected ? 'Type a message for the board…' : 'Connect the board to send'}
           value={input}
           disabled={!connected}
           onChange={(e) => setInput(e.target.value)}
         />
-        <button
-          className="rounded bg-slate-700 px-3 py-1 text-sm disabled:opacity-40"
-          disabled={!connected || !input}
-        >
+        <button className="btn btn-secondary" disabled={!connected || !input}>
           Send
+          <Send size={14} />
         </button>
       </form>
     </div>
