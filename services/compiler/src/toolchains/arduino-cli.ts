@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { parseDiagnostics, sanitizeLog } from '../diagnostics.ts';
 import { createTar } from '../tar.ts';
 import type { CompileJob, CompileResult, ToolchainAdapter } from '../types.ts';
@@ -16,6 +18,12 @@ export interface SandboxConfig {
   /** 'runsc' (gVisor) in production. Not available on Docker Desktop. */
   runtime?: string;
   dockerBin: string;
+  /**
+   * 'container' (default): each job runs in its own locked-down Docker container.
+   * 'instance': the job runs directly in this container, which must itself be the sandbox:
+   * a Cloud Run instance in gVisor with no internet, serving one compile at a time (ADR 0005).
+   */
+  isolation?: 'container' | 'instance';
 }
 
 export const defaultSandbox: SandboxConfig = {
@@ -111,13 +119,19 @@ export class ArduinoCliAdapter implements ToolchainAdapter {
 
   constructor(
     private readonly cfg: SandboxConfig = defaultSandbox,
-    private readonly run: ProcessRunner = dockerRunner(cfg.dockerBin),
+    private readonly run: ProcessRunner = cfg.isolation === 'instance'
+      ? instanceRunner()
+      : dockerRunner(cfg.dockerBin),
   ) {}
 
   async compile(job: CompileJob, signal?: AbortSignal): Promise<CompileResult> {
     const started = Date.now();
     const name = `ctc-compile-${randomUUID()}`;
-    const r = await this.run(sandboxArgs(this.cfg, name, compileEntry(job)), createTar(job.files), {
+    const args =
+      this.cfg.isolation === 'instance'
+        ? compileEntry(job)
+        : sandboxArgs(this.cfg, name, compileEntry(job));
+    const r = await this.run(args, createTar(job.files), {
       timeoutMs: this.cfg.timeoutMs,
       name,
       ...(signal && { signal }),
@@ -154,41 +168,101 @@ export class ArduinoCliAdapter implements ToolchainAdapter {
   }
 }
 
+/**
+ * Runs the job's bash command right here, one job at a time, in an emptied `workDir`. Only for
+ * a container that is itself the sandbox (`isolation: 'instance'`). The job sees only the
+ * toolchain's environment variables, and the whole process group is killed at the time limit.
+ */
+export function instanceRunner(workDir = '/work'): ProcessRunner {
+  const keep = ['PATH', 'HOME', 'LANG'];
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => keep.includes(k) || k.startsWith('ARDUINO_')),
+  );
+  const empty = async () => {
+    await mkdir(workDir, { recursive: true });
+    for (const f of await readdir(workDir)) {
+      await rm(join(workDir, f), { recursive: true, force: true });
+    }
+  };
+  let last: Promise<unknown> = Promise.resolve();
+  return (args, stdin, opts) => {
+    const job = last.then(async () => {
+      await empty();
+      try {
+        return await spawnCapped('bash', args, stdin, opts, { env, cwd: workDir, group: true });
+      } finally {
+        await empty();
+      }
+    });
+    last = job.catch(() => {});
+    return job;
+  };
+}
+
 /** Spawns docker; enforces the wall-clock limit by killing the named container. */
 export function dockerRunner(dockerBin: string): ProcessRunner {
-  return (args, stdin, { timeoutMs, name, signal }) =>
-    new Promise((resolve, reject) => {
-      const child = spawn(dockerBin, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-      let stdout = '';
-      let stderr = '';
-      let timedOut = false;
-      const kill = () =>
-        spawn(dockerBin, ['kill', name], { stdio: 'ignore' }).on('error', () => {});
-      const timer = setTimeout(() => {
-        timedOut = true;
-        kill();
-      }, timeoutMs);
-      const onAbort = () => kill();
-      signal?.addEventListener('abort', onAbort, { once: true });
-
-      child.stdout.setEncoding('utf8').on('data', (d: string) => {
-        if (stdout.length < MAX_STDOUT) stdout += d;
-      });
-      child.stderr.setEncoding('utf8').on('data', (d: string) => {
-        if (stderr.length < MAX_STDERR) stderr += d;
-      });
-      child.on('error', (e) => {
-        clearTimeout(timer);
-        reject(
-          new Error(`Could not start the compiler sandbox (${e.message}). Is Docker running?`),
-        );
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', onAbort);
-        resolve({ code: code ?? 1, stdout, stderr, timedOut });
-      });
-      child.stdin.on('error', () => {}); // container may exit before reading all input
-      child.stdin.end(stdin);
+  return (args, stdin, opts) =>
+    spawnCapped(dockerBin, args, stdin, opts, {
+      kill: () => spawn(dockerBin, ['kill', opts.name], { stdio: 'ignore' }).on('error', () => {}),
     });
+}
+
+/** Runs a process with capped output, killing it at the time limit or when aborted. */
+function spawnCapped(
+  bin: string,
+  args: string[],
+  stdin: Uint8Array,
+  { timeoutMs, signal }: { timeoutMs: number; signal?: AbortSignal },
+  how: {
+    env?: NodeJS.ProcessEnv;
+    cwd?: string;
+    /** Run in its own process group, so the time limit kills the compiler's children too. */
+    group?: boolean;
+    kill?: () => void;
+  },
+): Promise<ProcessResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...(how.env && { env: how.env }),
+      ...(how.cwd && { cwd: how.cwd }),
+      detached: !!how.group,
+    });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const kill =
+      how.kill ??
+      (() => {
+        try {
+          if (child.pid) process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          // already gone
+        }
+      });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      kill();
+    }, timeoutMs);
+    const onAbort = () => kill();
+    signal?.addEventListener('abort', onAbort, { once: true });
+
+    child.stdout.setEncoding('utf8').on('data', (d: string) => {
+      if (stdout.length < MAX_STDOUT) stdout += d;
+    });
+    child.stderr.setEncoding('utf8').on('data', (d: string) => {
+      if (stderr.length < MAX_STDERR) stderr += d;
+    });
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reject(new Error(`Could not start the compiler sandbox (${e.message}). Is Docker running?`));
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve({ code: code ?? 1, stdout, stderr, timedOut });
+    });
+    child.stdin.on('error', () => {}); // the job may exit before reading all input
+    child.stdin.end(stdin);
+  });
 }

@@ -1,5 +1,7 @@
 # Compile server on one VM
 
+> Replaced by Cloud Run on 2026-10-05 (`deploy/cloud-run/`, ADR 0005). Kept as a fallback.
+
 ADR 0005, option 1: one x86-64 VM in Mumbai runs the HTTPS proxy (Caddy), the compile API, one compile worker and Redis. Each compile runs in a fresh gVisor container on that VM. Nothing else runs on it. Only users signed in to the `codetochip` Firebase project can compile; guests are asked to sign in.
 
 Cost, checked 2026-10-03: an e2-standard-2 in `asia-south1` is about $59 a month, plus about $7 for the disk and static IP. Stop the VM when nobody needs compiling.

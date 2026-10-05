@@ -1,6 +1,6 @@
 # 0005 — Hosting
 
-Date: 2026-10-02 · Status: **accepted 2026-10-03**: start with a single VM (below)
+Date: 2026-10-02 · Status: **accepted 2026-10-03**: start with a single VM; **changed 2026-10-05** to Cloud Run (below)
 
 ## What has to run
 
@@ -61,6 +61,17 @@ Everything else: Firebase Hosting for web and admin, Cloud Run for the compile A
 ## Decision (2026-10-03)
 
 Start smaller than A: **one e2-standard-2 VM** in `asia-south1` running Caddy (HTTPS), the compile API, one worker (gVisor) and Redis, from `deploy/compile-vm/`. That's about $66 a month, with no Memorystore or Cloud Run. The web app calls it on its own hostname (`VITE_COMPILE_URL`); the API allows only the site's origins (`ALLOWED_ORIGINS`). Only signed-in users may compile (guests can't): the API checks the Firebase ID token (`FIREBASE_PROJECT_ID`), limits each user to 30 compiles a minute, and refuses new jobs while 100 are waiting (`MAX_QUEUED`). That stops anonymous abuse and keeps a flood from piling up, though not a network-level flood. One VM runs about two compiles at once, so a full class will queue. Move to A (more VMs, shared Redis) when real classes need it.
+
+## Change (2026-10-05): Cloud Run
+
+Moved the compile service from the VM to **B, Cloud Run**, from `deploy/cloud-run/`. A VM costs about $66 a month even when idle. Cloud Run scales to zero and costs a fraction of a cent per compile, which suits today's light use. B's drawbacks are handled this way:
+
+- **Instance reuse.** Each instance serves one compile at a time, `/work` is emptied before and after every job, and the job sees only the toolchain's environment variables.
+- **Egress.** All traffic goes through a VPC with no NAT, so there is no internet. Private Google Access lets the API reach Firebase's signing keys.
+- **No read-only root or own seccomp profile.** Accepted: the instance is gVisor-sandboxed (first-generation environment) and disposable, and its service account has no roles.
+- **Cold starts.** Accepted for now; `--min-instances 1` removes them if classes notice.
+
+**Compiling is now one request.** `POST /api/build` answers with the result and the `.bin` inline, because a follow-up poll could reach another instance. The queue API (`/api/compile`) stays for the VM and Redis setups. The per-user rate limit is counted per instance; sign-in and `--max-instances 10` bound the total. `deploy/compile-vm/` stays as a fallback.
 
 ## Before the first deployment (Navin)
 

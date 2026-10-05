@@ -108,6 +108,37 @@ describe('compile API', () => {
     expect(done.outcome!.artifact!.size).toBe(art.rawPayload.length);
   });
 
+  it('compiles on one request with the .bin inline, for Cloud Run', async () => {
+    const { app } = setup();
+    const ok = await app.inject({ method: 'POST', url: '/api/build', payload: blink() });
+    expect(ok.statusCode).toBe(200);
+    const body = ok.json<{ ok: boolean; artifact: { size: number; base64: string } }>();
+    const bin = Buffer.from(body.artifact.base64, 'base64');
+    expect(body.ok).toBe(true);
+    expect(bin.toString()).toBe(
+      `bin:vega:riscv:aries_v3:upload_method=xmodemMethod:${blink().files[0]!.content.length}`,
+    );
+    expect(body.artifact.size).toBe(bin.length);
+
+    const bad = await app.inject({ method: 'POST', url: '/api/build', payload: blink('ERROR') });
+    expect(bad.statusCode).toBe(200);
+    expect(bad.json()).toMatchObject({ ok: false, diagnostics: [{ line: 1, severity: 'error' }] });
+    expect(bad.json<{ artifact?: unknown }>().artifact).toBeUndefined();
+  });
+
+  it('asks guests to sign in and explains server failures on the one-request compile', async () => {
+    const t = createTestService();
+    const app = buildApp(t.service, { verifyUser: async (tok) => ({ uid: tok }) });
+    apps.push(app);
+    const post = (headers = {}) =>
+      app.inject({ method: 'POST', url: '/api/build', payload: blink(), headers });
+    expect((await post()).json()).toEqual({ error: expect.stringMatching(/Sign in/) });
+    t.adapter.crash = true;
+    const r = await post({ authorization: 'Bearer u1' });
+    expect(r.statusCode).toBe(503);
+    expect(r.json()).toEqual({ error: expect.stringMatching(/try again/) });
+  });
+
   it('returns identical sources from the cache without compiling again', async () => {
     const { app, adapter } = setup();
     const first = (

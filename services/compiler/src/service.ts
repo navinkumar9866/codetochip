@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto';
 import type { ArtifactStore, JobOutcome, JobQueue, JobStatus, ResultCache } from './jobs.ts';
 import type { CompileJob, ToolchainAdapter } from './types.ts';
 
+const EXPIRED = 'This compile result has expired. Compile again.';
+const FAILED = 'The compile server had a problem. Please try again.';
+const BUSY = 'The compile server is very busy. Try again in a minute.';
+
 export const ARTIFACT_TTL_SECONDS = 60 * 60;
 const CACHE_PREFIX = 'c_';
 
@@ -42,6 +46,31 @@ export class CompileService {
       return outcome ? { id, state: 'succeeded', outcome: { ...outcome, cached: true } } : null;
     }
     return this.deps.queue.status(id);
+  }
+
+  /**
+   * Compiles and waits for the result, for clients that can't poll: on Cloud Run each request
+   * may reach a different instance, so the result must come back on the same request.
+   */
+  async compile(
+    job: CompileJob,
+    { timeoutMs = 120_000, pollMs = 50 } = {},
+  ): Promise<{ outcome: JobOutcome; binary?: Uint8Array }> {
+    const { id } = await this.submit(job);
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const s = await this.status(id);
+      if (!s) throw new Error(EXPIRED);
+      if (s.state === 'failed') throw new Error(s.error ?? FAILED);
+      if (s.state === 'succeeded' && s.outcome) {
+        if (!s.outcome.artifact) return { outcome: s.outcome };
+        const binary = await this.artifact(s.outcome.artifact.id);
+        if (!binary) throw new Error(EXPIRED);
+        return { outcome: s.outcome, binary };
+      }
+      if (Date.now() > deadline) throw new Error(BUSY);
+      await new Promise((r) => setTimeout(r, pollMs));
+    }
   }
 
   /** Jobs waiting for a worker. */

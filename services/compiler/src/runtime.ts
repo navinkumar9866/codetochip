@@ -17,6 +17,8 @@ import { ArduinoCliAdapter, defaultSandbox } from './toolchains/arduino-cli.ts';
  *   Unset: single process, in-memory (local development).
  * - WORKER_CONCURRENCY: parallel compiles in this process (default: CPU count - 1).
  * - WORKER_IMAGE, SANDBOX_MEMORY, SANDBOX_RUNTIME (e.g. runsc): sandbox settings.
+ * - SANDBOX_ISOLATION=instance: compile inside this container instead of starting one per job
+ *   (Cloud Run, where the instance is the sandbox; deploy/cloud-run).
  */
 export function createRuntime(env: NodeJS.ProcessEnv = process.env) {
   const redis = env.REDIS_URL ? connectRedis(env.REDIS_URL) : null;
@@ -30,6 +32,7 @@ export function createRuntime(env: NodeJS.ProcessEnv = process.env) {
     ...(env.WORKER_IMAGE && { image: env.WORKER_IMAGE }),
     ...(env.SANDBOX_MEMORY && { memory: env.SANDBOX_MEMORY }),
     ...(env.SANDBOX_RUNTIME && { runtime: env.SANDBOX_RUNTIME }),
+    ...(env.SANDBOX_ISOLATION === 'instance' && { isolation: 'instance' as const }),
   });
   const service = new CompileService({ queue, adapter, artifacts, cache });
   const concurrency = Number(env.WORKER_CONCURRENCY) || Math.max(1, cpus().length - 1);

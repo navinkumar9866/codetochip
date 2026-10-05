@@ -24,7 +24,6 @@ import {
   compileNeedsSignIn,
   compileOnServer,
   type CompileOutcome,
-  type CompileProgress,
   type Diagnostic,
 } from '../compile/client.ts';
 import { TopBarEnd, TopBarModes, TopBarStart } from '../app/top-bar.tsx';
@@ -51,7 +50,7 @@ interface Draft {
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | { error: string };
-type Busy = null | { kind: 'compile'; progress: CompileProgress } | { kind: 'upload' };
+type Busy = null | { kind: 'compile' } | { kind: 'upload' };
 
 const AUTOSAVE_MS = 1200;
 
@@ -223,17 +222,14 @@ export function IdePage() {
   const ensureBuilt = async (): Promise<Uint8Array | null> => {
     if (!draft) return null;
     if (built.current?.key === buildKey) return built.current.binary;
-    setBusy({ kind: 'compile', progress: { state: 'submitting' } });
+    setBusy({ kind: 'compile' });
     setPanel('problems');
     const elapsed = stopwatch();
     const compileEvent = { kind: 'compile' as const, board: draft.boardId, mode: modeId };
     try {
       const r = await compileOnServer(
         { board: draft.boardId, mode: modeId, files: draft.files },
-        {
-          onProgress: (progress) => setBusy({ kind: 'compile', progress }),
-          token: await auth.idToken(),
-        },
+        { token: await auth.idToken() },
       );
       setOutcome(r.outcome);
       setCheckedKey(buildKey);
@@ -584,7 +580,7 @@ export function IdePage() {
                   ) : (
                     <span className="flex items-center gap-1.5">
                       <button className="btn btn-primary" disabled={!!busy} onClick={check}>
-                        {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Compile'}
+                        {busy?.kind === 'compile' ? 'Compiling…' : 'Compile'}
                         <ListChecks size={16} />
                       </button>
                       <Info
@@ -917,21 +913,9 @@ function Cell({ children, className = '' }: { children: ReactNode; className?: s
   );
 }
 
-const compileLabel = (p: CompileProgress) =>
-  p.state === 'queued'
-    ? p.position > 0
-      ? `Queued (${p.position} ahead)…`
-      : 'Starting…'
-    : 'Compiling…';
-
 /** The banner under the toolbar while compiling or uploading: what's happening, how far along. */
 function stageOf(busy: NonNullable<Busy>, flash: FlashProgress | null, boardName: string) {
-  if (busy.kind === 'compile') {
-    const p = busy.progress;
-    if (p.state === 'queued' && p.position > 0)
-      return { text: `Waiting for a free compiler (${p.position} ahead)…`, pct: 5 };
-    return { text: 'Compiling your program…', pct: p.state === 'running' ? 15 : 8 };
-  }
+  if (busy.kind === 'compile') return { text: 'Compiling your program…', pct: 10 };
   switch (flash?.stage) {
     case 'transferring': {
       const done = flash.totalBytes ? (flash.bytesSent ?? 0) / flash.totalBytes : 0;

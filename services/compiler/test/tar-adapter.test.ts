@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { createTar } from '../src/tar.ts';
 import {
   ArduinoCliAdapter,
   defaultSandbox,
+  instanceRunner,
   type ProcessRunner,
 } from '../src/toolchains/arduino-cli.ts';
 import type { CompileJob } from '../src/types.ts';
@@ -92,5 +93,42 @@ describe('ArduinoCliAdapter', () => {
     expect(r.ok).toBe(false);
     expect(r.log).toMatch(message);
     expect(r.diagnostics).toHaveLength(diags);
+  });
+});
+
+describe('instanceRunner', () => {
+  const work = () => mkdtempSync(join(tmpdir(), 'ctc-work-'));
+  const opts = { timeoutMs: 5_000, name: 'job' };
+
+  it('starts each job in an empty folder, without the server’s secrets, and cleans up', async () => {
+    const dir = work();
+    writeFileSync(join(dir, 'left-over'), 'x');
+    process.env.CTC_TEST_SECRET = 'hunter2';
+    try {
+      const run = instanceRunner(dir);
+      const r = await run(
+        ['-c', 'ls -A; cat > in.txt; echo "secret=${CTC_TEST_SECRET:-none}"'],
+        new TextEncoder().encode('hi'),
+        opts,
+      );
+      expect(r).toMatchObject({ code: 0, timedOut: false });
+      expect(r.stdout).toBe('secret=none\n');
+      expect(readdirSync(dir)).toEqual([]);
+    } finally {
+      delete process.env.CTC_TEST_SECRET;
+    }
+  });
+
+  it('runs one job at a time and kills the whole job at the time limit', async () => {
+    const run = instanceRunner(work());
+    const started = Date.now();
+    const [slow, next] = await Promise.all([
+      run(['-c', 'sleep 30 & sleep 30; echo done'], new Uint8Array(), { ...opts, timeoutMs: 200 }),
+      run(['-c', 'ls -A'], new Uint8Array(), opts),
+    ]);
+    expect(slow.timedOut).toBe(true);
+    expect(slow.stdout).toBe('');
+    expect(next).toMatchObject({ code: 0, stdout: '' }); // the slow job's folder was emptied
+    expect(Date.now() - started).toBeLessThan(3_000);
   });
 });

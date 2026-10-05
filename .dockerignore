@@ -1,0 +1,5 @@
+# Images install their own dependencies.
+**/node_modules
+**/dist
+.git
+docs/scratch

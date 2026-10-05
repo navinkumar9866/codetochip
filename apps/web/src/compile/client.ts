@@ -14,23 +14,13 @@ export interface CompileOutcome {
   log: string;
   durationMs: number;
   cached?: boolean;
-  artifact?: { url: string; size: number; sha256: string; expiresAt: string };
+  artifact?: { size: number; sha256: string };
 }
-
-export type CompileProgress =
-  { state: 'submitting' } | { state: 'queued'; position: number } | { state: 'running' };
 
 export interface CompileResult {
   outcome: CompileOutcome;
   /** The .bin, when compiling succeeded. */
   binary?: Uint8Array;
-}
-
-interface Status {
-  state: 'queued' | 'running' | 'succeeded' | 'failed';
-  position?: number;
-  outcome?: CompileOutcome;
-  error?: string;
 }
 
 const OFFLINE = 'Can’t reach the compile server. Check your internet connection, then try again.';
@@ -44,84 +34,53 @@ const COMPILE_URL = (import.meta.env.VITE_COMPILE_URL ?? '').replace(/\/+$/, '')
 /** The hosted compile server only serves signed-in users (guests can't compile there). */
 export const compileNeedsSignIn = COMPILE_URL !== '';
 
-/** Compiles on the server (services/compiler) and downloads the result. */
+/** Compiles on the server (services/compiler) and returns the result with the .bin. */
 export async function compileOnServer(
   req: { board: string; mode: string; files: ProjectFile[] },
   opts: {
-    onProgress?: (p: CompileProgress) => void;
     signal?: AbortSignal;
     baseUrl?: string;
     /** The signed-in user's ID token; the hosted compile API only serves signed-in users. */
     token?: string | null;
-    pollMs?: number;
-    timeoutMs?: number;
   } = {},
 ): Promise<CompileResult> {
-  const {
-    onProgress,
-    signal,
-    baseUrl = COMPILE_URL,
-    token,
-    pollMs = 400,
-    timeoutMs = 120_000,
-  } = opts;
-  const request = async (path: string, init?: RequestInit) => {
-    try {
-      return await fetch(baseUrl + path, { ...init, ...(signal && { signal }) });
-    } catch (e) {
-      if (signal?.aborted) throw e;
-      throw new Error(OFFLINE, { cause: e });
-    }
-  };
-
-  onProgress?.({ state: 'submitting' });
-  const res = await request('/api/compile', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(token && { authorization: `Bearer ${token}` }),
-    },
-    body: JSON.stringify(req),
-  });
-  const body = (await res.json().catch(() => ({}))) as {
-    jobId?: string;
-    position?: number;
+  const { signal, baseUrl = COMPILE_URL, token } = opts;
+  // One request that answers with the result: on Cloud Run, a follow-up request could reach a
+  // different server that never saw this compile (ADR 0005).
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/api/build`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token && { authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(req),
+      ...(signal && { signal }),
+    });
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    throw new Error(OFFLINE, { cause: e });
+  }
+  const body = (await res.json().catch(() => ({}))) as Partial<BuildResponse> & {
     error?: string;
   };
-  if (!res.ok || !body.jobId) throw new Error(body.error ?? OFFLINE);
-
-  const deadline = Date.now() + timeoutMs;
-  for (let first = true; ; first = false) {
-    if (!first) await sleep(pollMs, signal);
-    if (Date.now() > deadline) {
-      throw new Error('The compile server is very busy. Please try again in a minute.');
-    }
-    const s = await request(`/api/compile/${body.jobId}`);
-    const status = (await s.json().catch(() => ({}))) as Status & { error?: string };
-    if (!s.ok) throw new Error(status.error ?? OFFLINE);
-    if (status.state === 'failed') throw new Error(status.error ?? 'The build failed. Try again.');
-    if (status.state === 'queued')
-      onProgress?.({ state: 'queued', position: status.position ?? 0 });
-    if (status.state === 'running') onProgress?.({ state: 'running' });
-    if (status.state !== 'succeeded' || !status.outcome) continue;
-
-    const outcome = status.outcome;
-    if (!outcome.ok || !outcome.artifact) return { outcome };
-    const art = await request(outcome.artifact.url);
-    if (!art.ok) throw new Error('The build expired before it could be downloaded. Compile again.');
-    return { outcome, binary: new Uint8Array(await art.arrayBuffer()) };
-  }
+  if (!res.ok || !Array.isArray(body.diagnostics)) throw new Error(body.error ?? OFFLINE);
+  const { artifact, ...outcome } = body as BuildResponse;
+  if (!outcome.ok || !artifact) return { outcome };
+  return {
+    outcome: { ...outcome, artifact: { size: artifact.size, sha256: artifact.sha256 } },
+    binary: fromBase64(artifact.base64),
+  };
 }
 
-const sleep = (ms: number, signal?: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(t);
-        reject(signal.reason);
-      },
-      { once: true },
-    );
-  });
+interface BuildResponse extends Omit<CompileOutcome, 'artifact'> {
+  artifact?: { size: number; sha256: string; base64: string };
+}
+
+function fromBase64(b64: string): Uint8Array {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}

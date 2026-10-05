@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { compileOnServer, type CompileProgress } from '../src/compile/client.ts';
+import { compileOnServer } from '../src/compile/client.ts';
 
 const req = { board: 'aries-v3', mode: 'ram', files: [{ path: 'a.ino', content: '' }] };
 const json = (body: unknown, status = 200) =>
@@ -19,98 +19,61 @@ function serve(responses: Record<string, (() => Response)[]>) {
 }
 
 describe('compileOnServer', () => {
-  it('submits, reports queue position, then downloads the binary', async () => {
-    serve({
-      '/api/compile': [() => json({ jobId: 'j1', position: 1 }, 202)],
-      '/api/compile/j1': [
-        () => json({ state: 'queued', position: 1 }),
-        () => json({ state: 'running' }),
+  it('compiles on one request and decodes the binary', async () => {
+    const fetchMock = serve({
+      '/api/build': [
         () =>
           json({
-            state: 'succeeded',
-            outcome: {
-              ok: true,
-              diagnostics: [],
-              log: '',
-              durationMs: 5,
-              artifact: { url: '/api/artifacts/a1', size: 3, sha256: 'x', expiresAt: '' },
-            },
+            ok: true,
+            diagnostics: [],
+            log: '',
+            durationMs: 5,
+            artifact: { size: 3, sha256: 'x', base64: 'AQID' },
           }),
       ],
-      '/api/artifacts/a1': [() => new Response(new Uint8Array([1, 2, 3]))],
     });
-    const seen: CompileProgress[] = [];
-    const r = await compileOnServer(req, { pollMs: 1, onProgress: (p) => seen.push(p) });
+    const r = await compileOnServer(req);
     expect([...r.binary!]).toEqual([1, 2, 3]);
-    expect(seen).toEqual([
-      { state: 'submitting' },
-      { state: 'queued', position: 1 },
-      { state: 'running' },
-    ]);
+    expect(r.outcome).toMatchObject({ ok: true, artifact: { size: 3, sha256: 'x' } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('returns compile errors as an outcome without a binary', async () => {
     serve({
-      '/api/compile': [() => json({ jobId: 'j2' }, 202)],
-      '/api/compile/j2': [
+      '/api/build': [
         () =>
           json({
-            state: 'succeeded',
-            outcome: {
-              ok: false,
-              diagnostics: [{ file: 'a.ino', line: 2, column: 1, severity: 'error', message: 'x' }],
-              log: 'x',
-              durationMs: 1,
-            },
+            ok: false,
+            diagnostics: [{ file: 'a.ino', line: 2, column: 1, severity: 'error', message: 'x' }],
+            log: 'x',
+            durationMs: 1,
           }),
       ],
     });
-    const r = await compileOnServer(req, { pollMs: 1 });
+    const r = await compileOnServer(req);
     expect(r.binary).toBeUndefined();
     expect(r.outcome.diagnostics[0]!.line).toBe(2);
   });
 
   it.each([
-    [
-      'validation error',
-      { '/api/compile': [() => json({ error: 'Unknown board "x".' }, 400)] },
-      /Unknown board/,
-    ],
-    [
-      'rate limit',
-      { '/api/compile': [() => json({ error: 'Wait a minute' }, 429)] },
-      /Wait a minute/,
-    ],
-    [
-      'server failure',
-      {
-        '/api/compile': [() => json({ jobId: 'j' }, 202)],
-        '/api/compile/j': [() => json({ state: 'failed', error: 'Please try again.' })],
-      },
-      /try again/,
-    ],
-    [
-      'expired job',
-      {
-        '/api/compile': [() => json({ jobId: 'j' }, 202)],
-        '/api/compile/j': [() => json({ error: 'expired. Compile again.' }, 404)],
-      },
-      /Compile again/,
-    ],
-  ])('explains a %s', async (_, responses, message) => {
-    serve(responses);
-    await expect(compileOnServer(req, { pollMs: 1 })).rejects.toThrow(message);
+    ['validation error', json({ error: 'Unknown board "x".' }, 400), /Unknown board/],
+    ['rate limit', json({ error: 'Wait a minute' }, 429), /Wait a minute/],
+    ['server failure', json({ error: 'Please try again.' }, 503), /try again/],
+    ['proxy error page', new Response('<html>502</html>', { status: 502 }), /compile server/],
+  ])('explains a %s', async (_, response, message) => {
+    serve({ '/api/build': [() => response] });
+    await expect(compileOnServer(req)).rejects.toThrow(message);
   });
 
   it('sends the signed-in user’s token to the compile server', async () => {
     const fetchMock = serve({
-      '/api/compile': [() => json({ error: 'Sign in to compile and upload your code.' }, 401)],
+      '/api/build': [() => json({ error: 'Sign in to compile and upload your code.' }, 401)],
     });
     await expect(
       compileOnServer(req, { baseUrl: 'https://compile.example', token: 'tok' }),
     ).rejects.toThrow(/Sign in/);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://compile.example/api/compile');
+    expect(url).toBe('https://compile.example/api/build');
     expect(new Headers(init.headers).get('authorization')).toBe('Bearer tok');
   });
 

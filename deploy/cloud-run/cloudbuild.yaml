@@ -1,0 +1,33 @@
+# Builds the toolchain worker image, then the Cloud Run compile image on top of it, and pushes it.
+#   gcloud builds submit --config deploy/cloud-run/cloudbuild.yaml --substitutions _IMAGE=<image>
+steps:
+  # Board list from the manifests, as docker build arguments (CLAUDE.md rule 6).
+  - name: node:24-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        corepack enable && pnpm install --frozen-lockfile --filter @codetochip/compiler... &&
+        cd services/compiler && node --import tsx scripts/worker-build.ts --print-args > /workspace/worker-args
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        readarray -t args < /workspace/worker-args &&
+        docker build -t worker "$${args[@]}" services/compiler/workers/arduino-cli
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - services/compiler/cloudrun.Dockerfile
+      - --build-arg
+      - WORKER_IMAGE=worker
+      - -t
+      - ${_IMAGE}
+      - .
+images:
+  - ${_IMAGE}
+options:
+  machineType: E2_HIGHCPU_8
+timeout: 2400s

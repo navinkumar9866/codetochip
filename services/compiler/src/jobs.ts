@@ -92,12 +92,14 @@ export class InMemoryJobQueue implements JobQueue {
       this.handler(job)
         .then(
           (outcome) => this.states.set(id, { id, state: 'succeeded', outcome }),
-          () =>
+          (e: unknown) => {
+            console.error('compile job failed', e);
             this.states.set(id, {
               id,
               state: 'failed',
               error: 'The compile server had a problem. Please try again.',
-            }),
+            });
+          },
         )
         .finally(() => {
           this.running--;

@@ -13,20 +13,16 @@ async function openView(page: Page, name: 'Code' | 'Problems' | 'Serial') {
 }
 
 async function fakeCompiler(page: Page, outcome: object, binary = new Uint8Array(4396).fill(0x13)) {
-  let polls = 0;
-  await page.route('**/api/compile', (route) =>
-    route.fulfill({ status: 202, json: { jobId: 'job-1', position: 1, cached: false } }),
-  );
-  await page.route('**/api/compile/job-1', (route) =>
+  const { artifact, ...rest } = outcome as { artifact?: object };
+  await page.route('**/api/build', (route) =>
     route.fulfill({
-      json:
-        polls++ === 0
-          ? { id: 'job-1', state: 'queued', position: 0 }
-          : { id: 'job-1', state: 'succeeded', outcome },
+      json: {
+        ...rest,
+        ...(artifact && {
+          artifact: { ...artifact, base64: Buffer.from(binary).toString('base64') },
+        }),
+      },
     }),
-  );
-  await page.route('**/api/artifacts/art-1', (route) =>
-    route.fulfill({ body: Buffer.from(binary), contentType: 'application/octet-stream' }),
   );
 }
 
@@ -35,7 +31,7 @@ const ok = {
   diagnostics: [],
   log: 'Sketch uses 4396 bytes.',
   durationMs: 900,
-  artifact: { id: 'art-1', url: '/api/artifacts/art-1', size: 4396, sha256: 'x', expiresAt: '' },
+  artifact: { size: 4396, sha256: 'x' },
 };
 
 test('the homepage leads into the app', async ({ page }) => {
