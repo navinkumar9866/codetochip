@@ -34,6 +34,15 @@ export interface AuthService {
    * Google account already exists, the user is signed into it instead (uid changes).
    */
   signInWithGoogle(): Promise<void>;
+  /** Signs in with an email address and password. Throws AuthError with a plain message. */
+  signInWithPassword(email: string, password: string): Promise<void>;
+  /**
+   * Creates an email-and-password account. A guest's account is upgraded in place (same uid,
+   * same projects). Throws AuthError with a plain message.
+   */
+  createAccount(input: { name: string; email: string; password: string }): Promise<void>;
+  /** Emails a link for choosing a new password (sent whether or not the account exists). */
+  sendPasswordReset(email: string): Promise<void>;
   /** Emails a sign-in link that comes back to `returnUrl`. */
   sendEmailLink(email: string, returnUrl: string): Promise<void>;
   /**
@@ -117,6 +126,14 @@ export class NotSignedInError extends Error {
     this.name = 'NotSignedInError';
   }
 }
+
+/** A sign-in problem the user can fix; the message says what to do. */
+export class AuthError extends Error {
+  override name = 'AuthError';
+}
+
+/** Passwords need this many characters (Firebase's minimum is 6). */
+export const MIN_PASSWORD_LENGTH = 8;
 
 export class InvalidProjectError extends Error {
   constructor(message: string) {

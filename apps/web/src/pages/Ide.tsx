@@ -568,7 +568,7 @@ export function IdePage() {
                 <>
                   {mustSignIn ? (
                     <span className="flex items-center gap-1.5">
-                      <button className="btn btn-primary" onClick={openSignIn}>
+                      <button className="btn btn-primary" onClick={() => openSignIn()}>
                         Sign in to compile
                         <LogIn size={16} />
                       </button>
@@ -868,7 +868,10 @@ export function IdePage() {
                   </button>
                 ))}
                 {mustSignIn ? (
-                  <button className="btn btn-primary m-1 justify-center" onClick={openSignIn}>
+                  <button
+                    className="btn btn-primary m-1 justify-center"
+                    onClick={() => openSignIn()}
+                  >
                     Sign in
                   </button>
                 ) : (

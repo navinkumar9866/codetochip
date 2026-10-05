@@ -280,16 +280,40 @@ test('telemetry: an upload records anonymous compile and flash events; opting ou
   expect(await events()).toHaveLength(2);
 });
 
-test('email sign-in link: a guest’s work is kept after signing in by email', async ({ page }) => {
-  type Mem = { __services: { sentLinks: { link: string }[] } };
+test('sign up: a guest’s work is kept after creating an account', async ({ page }) => {
   await page.goto(`/ide?${MOCK}`);
   await page.getByLabel('Project name').fill('Guest work');
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Sign in to keep your work' }).click();
-  await page.getByLabel('Email address').fill('asha@example.com');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByText('Check your email for a sign-in link')).toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'Log in to CodeToChip' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('tab', { name: 'Sign up' }).click();
+  const signUp = page.getByRole('dialog', { name: 'Create your account' });
+  await signUp.getByLabel('Name').fill('Asha');
+  await signUp.getByLabel('Email').fill('asha@example.com');
+  await signUp.getByLabel('Password', { exact: true }).fill('blink-led-1');
+  await signUp.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Asha', { exact: true })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Guest work', exact: true })).toBeVisible();
+});
+
+test('email sign-in link: links sent earlier still sign in', async ({ page }) => {
+  type Mem = {
+    __services: {
+      auth: { sendEmailLink(e: string, u: string): Promise<void> };
+      sentLinks: { link: string }[];
+    };
+  };
+  await page.goto(`/ide?${MOCK}`);
+  await page.getByLabel('Project name').fill('Guest work');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.evaluate(() =>
+    (globalThis as unknown as Mem).__services.auth.sendEmailLink('asha@example.com', location.href),
+  );
 
   // Arrive at the emailed link (in-app navigation: in-memory accounts live in this page).
   const link = new URL(

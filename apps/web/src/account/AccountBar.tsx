@@ -1,21 +1,21 @@
-import { useEffect, useState } from 'react';
-import { signInWithGoogleKeepingWork, type AppUser } from '@codetochip/data';
+import { useCallback, useEffect, useState } from 'react';
+import type { AppUser } from '@codetochip/data';
 import { useServices } from '../services.tsx';
+import { SignInDialog, type SignInMode } from './SignInDialog.tsx';
 
 const OPEN_SIGN_IN = 'c2c-open-sign-in';
 
-/** Opens the sign-in box in the top bar, e.g. from a "Sign in to compile" button. */
-export function openSignIn() {
-  window.dispatchEvent(new Event(OPEN_SIGN_IN));
+/** Opens the sign-in box, e.g. from a "Sign in to compile" button. */
+export function openSignIn(mode: SignInMode = 'login') {
+  window.dispatchEvent(new CustomEvent(OPEN_SIGN_IN, { detail: mode }));
 }
 
 export function AccountBar({ user }: { user: AppUser | null | undefined }) {
   const services = useServices();
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | { error: string }>('idle');
+  const [open, setOpen] = useState<SignInMode | null>(null);
+  const close = useCallback(() => setOpen(null), []);
   useEffect(() => {
-    const show = () => setOpen(true);
+    const show = (e: Event) => setOpen((e as CustomEvent<SignInMode>).detail ?? 'login');
     window.addEventListener(OPEN_SIGN_IN, show);
     return () => window.removeEventListener(OPEN_SIGN_IN, show);
   }, []);
@@ -23,31 +23,6 @@ export function AccountBar({ user }: { user: AppUser | null | undefined }) {
   if (user === undefined) return null;
   const signedIn = user && !user.isAnonymous;
   const label = user?.isAnonymous ? 'Sign in to keep your work' : 'Sign in';
-
-  const google = async () => {
-    setState('idle');
-    try {
-      await signInWithGoogleKeepingWork(services);
-      setOpen(false);
-    } catch {
-      setState({
-        error:
-          'Sign-in didn’t finish. If a popup was blocked, allow popups for this site and try again.',
-      });
-    }
-  };
-
-  const sendLink = async () => {
-    setState('sending');
-    try {
-      await services.auth.sendEmailLink(email.trim(), location.href);
-      setState('sent');
-    } catch {
-      setState({
-        error: 'Couldn’t send the email. Check the address and your connection, then try again.',
-      });
-    }
-  };
 
   if (signedIn) {
     return (
@@ -61,15 +36,15 @@ export function AccountBar({ user }: { user: AppUser | null | undefined }) {
   }
 
   return (
-    <div className="relative flex items-center gap-3 text-sm">
+    <div className="flex items-center gap-3 text-sm">
       {user?.isAnonymous && (
         <span className="hidden text-muted sm:inline">Guest · work saved on this device</span>
       )}
       <button
         aria-label={label}
-        aria-expanded={open}
+        aria-haspopup="dialog"
         className="rounded-md bg-accent px-3 py-1.5 font-medium whitespace-nowrap text-on-accent"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen('login')}
       >
         <span aria-hidden className="sm:hidden">
           Sign in
@@ -78,55 +53,7 @@ export function AccountBar({ user }: { user: AppUser | null | undefined }) {
           {label}
         </span>
       </button>
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Sign in"
-          className="absolute top-full right-0 z-20 mt-2 w-72 rounded-lg border border-line-strong bg-panel p-3 shadow-lg"
-        >
-          <button
-            className="w-full rounded-md bg-white px-3 py-2 font-medium text-[#14171c]"
-            onClick={() => void google()}
-          >
-            Continue with Google
-          </button>
-          <p className="my-3 text-center text-xs text-muted">or get a sign-in link by email</p>
-          {state === 'sent' ? (
-            <p role="status" className="text-ink">
-              Check your email for a sign-in link. It may take a minute, and may land in spam.
-            </p>
-          ) : (
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void sendLink();
-              }}
-            >
-              <input
-                type="email"
-                required
-                aria-label="Email address"
-                placeholder="you@example.com"
-                className="min-w-0 flex-1 rounded bg-raised-2 px-2 py-1.5"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <button
-                className="rounded bg-raised-2 px-3 py-1.5 disabled:opacity-40"
-                disabled={state === 'sending' || !email.includes('@')}
-              >
-                Send
-              </button>
-            </form>
-          )}
-          {typeof state === 'object' && (
-            <p role="alert" className="mt-2 text-err-ink">
-              {state.error}
-            </p>
-          )}
-        </div>
-      )}
+      {open && <SignInDialog initialMode={open} onClose={close} />}
     </div>
   );
 }

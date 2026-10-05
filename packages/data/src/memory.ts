@@ -6,7 +6,9 @@ import {
   type Share,
 } from './schema.ts';
 import {
+  AuthError,
   InvalidProjectError,
+  MIN_PASSWORD_LENGTH,
   NotSignedInError,
   type AppServices,
   type AppUser,
@@ -30,11 +32,15 @@ export function createMemoryServices(
   setUser(user: AppUser | null): void;
   events: Record<string, unknown>[];
   sentLinks: { email: string; link: string }[];
+  /** Addresses sent a password-reset email. */
+  sentResets: string[];
 } {
   let user = initialUser;
   let guests = 0;
   const events: Record<string, unknown>[] = [];
   const sentLinks: { email: string; link: string }[] = [];
+  const sentResets: string[] = [];
+  const accounts = new Map<string, { password: string; user: AppUser }>();
   let pending: string | null = null;
   const listeners = new Set<(u: AppUser | null) => void>();
   const setUser = (u: AppUser | null) => {
@@ -72,6 +78,34 @@ export function createMemoryServices(
         role: 'student',
         isAnonymous: false,
       });
+    },
+    async signInWithPassword(email, password) {
+      const account = accounts.get(email.toLowerCase());
+      if (account?.password !== password) {
+        throw new AuthError('That email and password don’t match. Check them and try again.');
+      }
+      setUser(account.user);
+    },
+    async createAccount({ name, email, password }) {
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new AuthError(`Use a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+      }
+      if (accounts.has(email.toLowerCase())) {
+        throw new AuthError('There’s already an account with this email. Log in instead.');
+      }
+      const account: AppUser = {
+        uid: user?.isAnonymous ? user.uid : `email-${email}`,
+        displayName: name.trim() || null,
+        email,
+        photoURL: null,
+        role: 'student',
+        isAnonymous: false,
+      };
+      accounts.set(email.toLowerCase(), { password, user: account });
+      setUser(account);
+    },
+    async sendPasswordReset(email) {
+      sentResets.push(email);
     },
     async sendEmailLink(email, returnUrl) {
       const link = new URL(returnUrl);
@@ -147,6 +181,7 @@ export function createMemoryServices(
     events,
     /** Sign-in links "emailed", for tests. */
     sentLinks,
+    sentResets,
     setUser,
   };
 }

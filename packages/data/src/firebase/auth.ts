@@ -1,9 +1,13 @@
 import {
+  createUserWithEmailAndPassword,
   EmailAuthProvider,
   GoogleAuthProvider,
   isSignInWithEmailLink,
   linkWithCredential,
+  sendPasswordResetEmail,
   sendSignInLinkToEmail,
+  signInWithEmailAndPassword,
+  updateProfile,
   signInWithEmailLink,
   linkWithPopup,
   onIdTokenChanged,
@@ -16,7 +20,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { COLLECTIONS, isRole } from '../schema.ts';
-import type { AppUser, AuthService } from '../services.ts';
+import { AuthError, MIN_PASSWORD_LENGTH, type AppUser, type AuthService } from '../services.ts';
 
 export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthService {
   let cached: AppUser | null = null;
@@ -58,6 +62,34 @@ export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthServic
       await upsertProfile(db, user);
       await refresh(user);
     },
+    async signInWithPassword(email, password) {
+      const user = await plain(() => signInWithEmailAndPassword(auth, email, password)).then(
+        (r) => r.user,
+      );
+      await upsertProfile(db, user);
+      await refresh(user);
+    },
+    async createAccount({ name, email, password }) {
+      if (password.length < MIN_PASSWORD_LENGTH) throw new AuthError(TOO_SHORT);
+      const current = auth.currentUser;
+      const { user } = await plain(() =>
+        current?.isAnonymous
+          ? // Upgrade the guest in place so their work stays with them.
+            linkWithCredential(current, EmailAuthProvider.credential(email, password))
+          : createUserWithEmailAndPassword(auth, email, password),
+      );
+      if (name.trim()) await updateProfile(user, { displayName: name.trim() });
+      await upsertProfile(db, user);
+      await refresh(user);
+    },
+    async sendPasswordReset(email) {
+      try {
+        await sendPasswordResetEmail(auth, email);
+      } catch (e) {
+        // Unknown addresses aren't an error to show: that would reveal who has an account.
+        if ((e as { code?: string }).code !== 'auth/user-not-found') throw toAuthError(e);
+      }
+    },
     async sendEmailLink(email, returnUrl) {
       await sendSignInLinkToEmail(auth, email, { url: returnUrl, handleCodeInApp: true });
       remember(email);
@@ -97,6 +129,43 @@ export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthServic
       cached = null;
     },
   };
+}
+
+const TOO_SHORT = `Use a password of at least ${MIN_PASSWORD_LENGTH} characters.`;
+
+/** Runs a Firebase sign-in call, turning its error codes into messages that say what to do. */
+async function plain<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    throw toAuthError(e);
+  }
+}
+
+function toAuthError(e: unknown): Error {
+  const code = (e as { code?: string }).code ?? '';
+  const message = (
+    {
+      'auth/invalid-credential':
+        'That email and password don’t match. Check them and try again, or use “Forgot password?”. If you signed up with Google or an email link, use that instead.',
+      'auth/wrong-password':
+        'That email and password don’t match. Check them and try again, or use “Forgot password?”.',
+      'auth/user-not-found':
+        'That email and password don’t match. Check them and try again, or create an account.',
+      'auth/email-already-in-use':
+        'There’s already an account with this email. Log in instead, or use “Forgot password?”.',
+      'auth/credential-already-in-use':
+        'There’s already an account with this email. Log in instead, or use “Forgot password?”.',
+      'auth/invalid-email': 'That doesn’t look like an email address. Check it and try again.',
+      'auth/weak-password': TOO_SHORT,
+      'auth/password-does-not-meet-requirements': TOO_SHORT,
+      'auth/too-many-requests':
+        'Too many tries for now. Wait a few minutes, or use “Forgot password?”.',
+      'auth/network-request-failed': 'Couldn’t reach the sign-in server. Check your connection.',
+      'auth/user-disabled': 'This account has been turned off. Ask your teacher or contact us.',
+    } as Record<string, string>
+  )[code];
+  return message ? new AuthError(message) : (e as Error);
 }
 
 const EMAIL_KEY = 'ctc.emailForSignIn';

@@ -87,6 +87,66 @@ describe('account bar', () => {
     expect(await screen.findByText('Test User')).toBeTruthy();
     expect((await services.projects.listMine()).map((p) => p.name)).toEqual(['Keep me']);
   });
+
+  it('signs a guest up with email and password, keeping their work', async () => {
+    const services = createMemoryServices();
+    const guest = await services.auth.ensureUser();
+    renderAt('/projects', services);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in to keep your work' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create an account' }));
+    expect(screen.getByRole('tab', { name: 'Sign up' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Asha' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'asha@example.com' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/at least 8 characters/);
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'blink-led-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByText('Asha')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(services.auth.currentUser()).toMatchObject({ uid: guest.uid, isAnonymous: false });
+  });
+
+  it('logs in with a password, explains a wrong one, and sends a reset link', async () => {
+    const services = createMemoryServices();
+    await services.auth.createAccount({
+      name: '',
+      email: 'ravi@example.com',
+      password: 'p4ssword!',
+    });
+    await services.auth.signOut();
+    renderAt('/projects', services);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+    const dialog = screen.getByRole('dialog', { name: 'Log in to CodeToChip' });
+    expect(dialog).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ravi@example.com' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong-one' } });
+    expect(screen.getByLabelText('Password').getAttribute('type')).toBe('password');
+    fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(screen.getByLabelText('Password').getAttribute('type')).toBe('text');
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/don’t match/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }));
+    expect(screen.getByLabelText('Email')).toHaveProperty('value', 'ravi@example.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
+    expect((await screen.findByRole('status')).textContent).toMatch(
+      /link to choose a new password/,
+    );
+    expect(services.sentResets).toEqual(['ravi@example.com']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to log in' }));
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'p4ssword!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    expect(await screen.findByText('ravi@example.com')).toBeTruthy();
+  });
+
+  it('closes on Escape', async () => {
+    renderAt('/projects', createMemoryServices());
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 });
 
 describe('help page', () => {
