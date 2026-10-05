@@ -132,6 +132,11 @@ export class AuthError extends Error {
   override name = 'AuthError';
 }
 
+/** The user closed the sign-in window; nothing to report. */
+export class SignInCancelledError extends AuthError {
+  override name = 'SignInCancelledError';
+}
+
 /** Passwords need this many characters (Firebase's minimum is 6). */
 export const MIN_PASSWORD_LENGTH = 8;
 

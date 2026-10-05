@@ -20,7 +20,13 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { COLLECTIONS, isRole } from '../schema.ts';
-import { AuthError, MIN_PASSWORD_LENGTH, type AppUser, type AuthService } from '../services.ts';
+import {
+  AuthError,
+  MIN_PASSWORD_LENGTH,
+  SignInCancelledError,
+  type AppUser,
+  type AuthService,
+} from '../services.ts';
 
 export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthService {
   let cached: AppUser | null = null;
@@ -47,21 +53,25 @@ export function createFirebaseAuthService(auth: Auth, db: Firestore): AuthServic
       let user: User;
       if (current?.isAnonymous) {
         try {
-          user = (await linkWithPopup(current, provider)).user;
+          user = (await plain(() => linkWithPopup(current, provider))).user;
         } catch (e) {
-          // The Google account already exists: sign into it instead.
-          const credential = GoogleAuthProvider.credentialFromError(e as never);
-          if ((e as { code?: string }).code !== 'auth/credential-already-in-use' || !credential) {
-            throw e;
-          }
-          user = (await signInWithCredential(auth, credential)).user;
+          // This Google account (or its email) already has an account: sign into that instead.
+          const cause = (e as { cause?: unknown }).cause ?? e;
+          if (!SWITCH_ACCOUNT.has((cause as { code?: string }).code ?? '')) throw e;
+          const credential = GoogleAuthProvider.credentialFromError(cause as never);
+          user = (
+            await plain(() =>
+              credential ? signInWithCredential(auth, credential) : signInWithPopup(auth, provider),
+            )
+          ).user;
         }
       } else {
-        user = (await signInWithPopup(auth, provider)).user;
+        user = (await plain(() => signInWithPopup(auth, provider))).user;
       }
       await upsertProfile(db, user);
       await refresh(user);
     },
+
     async signInWithPassword(email, password) {
       const user = await plain(() => signInWithEmailAndPassword(auth, email, password)).then(
         (r) => r.user,
@@ -142,8 +152,18 @@ async function plain<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Linking a guest failed because the sign-in already belongs to an account. */
+const SWITCH_ACCOUNT = new Set([
+  'auth/credential-already-in-use',
+  'auth/email-already-in-use',
+  'auth/account-exists-with-different-credential',
+]);
+
 function toAuthError(e: unknown): Error {
   const code = (e as { code?: string }).code ?? '';
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return new SignInCancelledError();
+  }
   const message = (
     {
       'auth/invalid-credential':
@@ -162,10 +182,14 @@ function toAuthError(e: unknown): Error {
       'auth/too-many-requests':
         'Too many tries for now. Wait a few minutes, or use “Forgot password?”.',
       'auth/network-request-failed': 'Couldn’t reach the sign-in server. Check your connection.',
+      'auth/popup-blocked':
+        'The Google sign-in window was blocked. Allow popups for this site, then try again.',
+      'auth/unauthorized-domain':
+        'Google sign-in isn’t set up for this web address yet. Use codetochip.in, or sign in with email.',
       'auth/user-disabled': 'This account has been turned off. Ask your teacher or contact us.',
     } as Record<string, string>
   )[code];
-  return message ? new AuthError(message) : (e as Error);
+  return message ? new AuthError(message, { cause: e }) : (e as Error);
 }
 
 const EMAIL_KEY = 'ctc.emailForSignIn';

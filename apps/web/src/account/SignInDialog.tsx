@@ -3,6 +3,7 @@ import { ArrowRight, Eye, EyeOff, X } from 'lucide-react';
 import {
   AuthError,
   MIN_PASSWORD_LENGTH,
+  SignInCancelledError,
   signInKeepingWork,
   signInWithGoogleKeepingWork,
 } from '@codetochip/data';
@@ -75,20 +76,22 @@ export function SignInDialog({
       await action();
       after();
     } catch (e) {
-      setStatus({ error: e instanceof AuthError ? e.message : TRY_AGAIN });
+      if (e instanceof SignInCancelledError) setStatus('idle');
+      else setStatus({ error: e instanceof AuthError ? e.message : TRY_AGAIN });
     }
   };
 
   const google = () =>
-    run(async () => {
-      try {
-        await signInWithGoogleKeepingWork(services);
-      } catch {
-        throw new AuthError(
-          'Google sign-in didn’t finish. If a popup was blocked, allow popups for this site and try again.',
-        );
-      }
-    }, onClose);
+    run(
+      () =>
+        signInWithGoogleKeepingWork(services).catch((e: unknown) => {
+          if (e instanceof AuthError) throw e;
+          throw new AuthError(
+            'Google sign-in didn’t finish. Check your connection and try again, or use email.',
+          );
+        }),
+      onClose,
+    );
 
   const submit = () => {
     const address = email.trim();
