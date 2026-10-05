@@ -51,6 +51,8 @@
 }
 
 /* Light themes share the status colours. */
+:root,
+:root[data-theme='codetochip'],
 :root[data-theme='light'],
 :root[data-theme='simple'],
 :root[data-theme='modern'],
@@ -70,7 +72,6 @@
   color-scheme: light;
 }
 
-:root,
 :root[data-theme='dark'] {
   --ground: #0d0f13;
   --panel: #12151b;
@@ -98,6 +99,31 @@
   --led: #ffcc4d;
   --dots: #262c38;
   color-scheme: dark;
+}
+
+/* The default: the homepage's Modernist look (warm grey, brand red, Archivo, square corners). */
+:root,
+:root[data-theme='codetochip'] {
+  --ground: #f3f2f2;
+  --panel: #f9f8f8;
+  --raised: #ffffff;
+  --raised-2: #eae9e9;
+  --ink: #201e1d;
+  --muted: #605d5d;
+  --line: #dcdad9;
+  --line-strong: #b5b2b1;
+  --sel: #fff2ef;
+  --accent: #ec3013;
+  --accent-hover: #dd2b0f;
+  --accent-ink: #ae1800;
+  --accent-soft: #fff2ef;
+  --on-accent: #ffffff;
+  --ok: #127a4b;
+  --ok-soft: #e4f4ec;
+  --ok-ink: #0e6440;
+  --dots: #dcdad9;
+  --font-body: 'Archivo', system-ui, sans-serif;
+  --r: 0px;
 }
 
 :root[data-theme='light'] {

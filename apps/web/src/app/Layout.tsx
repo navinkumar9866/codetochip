@@ -33,14 +33,6 @@ export function Layout() {
           </nav>
           <div ref={setModes} className="contents" />
           <div className="flex-1" />
-          <nav aria-label="Main" className="flex items-center gap-1">
-            <NavLink to="/classes" className={nav}>
-              Classes
-            </NavLink>
-            <NavLink to="/help" className={nav}>
-              Help
-            </NavLink>
-          </nav>
           <div ref={setEnd} className="contents" />
           <div className="flex items-center gap-3">
             <SettingsMenu />

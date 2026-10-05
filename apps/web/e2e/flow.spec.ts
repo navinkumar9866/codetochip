@@ -202,9 +202,15 @@ test('classroom: teacher posts an assignment, a student joins and submits, the t
       [uid, displayName, role],
     );
 
+  // Classes is linked from the Projects page; navigate in-app so the signed-in mock user is kept.
+  const openClasses = async () => {
+    await page.getByRole('link', { name: 'Projects', exact: true }).first().click();
+    await page.getByRole('link', { name: 'Classes' }).click();
+  };
+
   await page.goto(`/projects?${MOCK}`);
   await signInAs('t1', 'Ms Rao', 'teacher');
-  await page.getByRole('link', { name: 'Classes' }).click();
+  await openClasses();
   await page.getByLabel('Class name').fill('Grade 9 Robotics');
   await page.getByRole('button', { name: 'Create class' }).click();
   const code = (await page.getByLabel('Join code').textContent())!.trim();
@@ -216,7 +222,7 @@ test('classroom: teacher posts an assignment, a student joins and submits, the t
   await expect(page.getByText('Blink the LED')).toBeVisible();
 
   await signInAs('s1', 'Asha', 'student');
-  await page.getByRole('link', { name: 'Classes' }).click();
+  await openClasses();
   await page.getByLabel('Class code').fill(code.toLowerCase());
   await page.getByRole('button', { name: 'Join' }).click();
   await expect(page.getByText('Make it blink twice a second.')).toBeVisible();
@@ -227,7 +233,7 @@ test('classroom: teacher posts an assignment, a student joins and submits, the t
   await expect(page.getByText('Submitted. Your teacher can see it now.')).toBeVisible();
 
   await signInAs('t1', 'Ms Rao', 'teacher');
-  await page.getByRole('link', { name: 'Classes' }).click();
+  await openClasses();
   await page.getByRole('link', { name: /Grade 9 Robotics/ }).click();
   await expect(page.getByText('Students (1)')).toBeVisible();
   await page.getByRole('button', { name: 'Show submissions' }).click();
@@ -272,12 +278,13 @@ test('telemetry: an upload records anonymous compile and flash events; opting ou
   // Nothing identifying: no user id, no code, no file names.
   expect(JSON.stringify(recorded)).not.toMatch(/uid|hello\.ino|Serial\.begin/);
 
-  await page.getByRole('link', { name: 'Help' }).click();
+  // The opt-out is remembered on this device, so it still applies after a reload.
+  await page.goto(`/help?${MOCK}`);
   await page.getByLabel('Share anonymous usage statistics').uncheck();
   await page.goBack();
   await page.getByRole('button', { name: 'Compile', exact: true }).first().click();
   await page.waitForTimeout(500);
-  expect(await events()).toHaveLength(2);
+  expect(await events()).toHaveLength(0);
 });
 
 test('sign up: a guest’s work is kept after creating an account', async ({ page }) => {

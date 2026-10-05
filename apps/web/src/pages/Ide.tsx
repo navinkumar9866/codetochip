@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   ChevronRight,
+  CircleHelp,
   CircleCheck,
   CircleDashed,
   CircleX,
@@ -835,7 +836,11 @@ export function IdePage() {
               </span>
               <span>{board.name}</span>
               <span>{connected ? 'USB · connected' : 'not connected'}</span>
-              <button className="ml-auto flex items-center gap-1.5" onClick={() => show('serial')}>
+              <Link to="/help" className="ml-auto flex items-center gap-1.5 hover:text-accent-ink">
+                <CircleHelp size={13} />
+                Help
+              </Link>
+              <button className="flex items-center gap-1.5" onClick={() => show('serial')}>
                 <Terminal size={13} />
                 Serial monitor
                 <span

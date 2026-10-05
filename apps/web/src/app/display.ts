@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 export const THEMES = [
+  { id: 'codetochip', label: 'CodeToChip' },
   { id: 'dark', label: 'Dark' },
   { id: 'light', label: 'Light' },
   { id: 'simple', label: 'Simple' },
@@ -22,7 +23,7 @@ export interface Display {
 }
 
 const KEYS = { theme: 'c2c-theme', density: 'c2c-density' } as const;
-const DEFAULT: Display = { theme: 'dark', density: 'standard' };
+const DEFAULT: Display = { theme: 'codetochip', density: 'standard' };
 
 const read = (key: string) => {
   try {
