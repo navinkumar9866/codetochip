@@ -104,7 +104,7 @@ describe('compileOnServer', () => {
 
   it('sends the signed-in user’s token to the compile server', async () => {
     const fetchMock = serve({
-      '/api/compile': [() => json({ error: 'Sign in to check and upload your code.' }, 401)],
+      '/api/compile': [() => json({ error: 'Sign in to compile and upload your code.' }, 401)],
     });
     await expect(
       compileOnServer(req, { baseUrl: 'https://compile.example', token: 'tok' }),

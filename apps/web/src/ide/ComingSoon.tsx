@@ -38,8 +38,8 @@ export function ComingSoon({
         <h1 className="text-2xl leading-tight font-semibold tracking-tight">{title}</h1>
         <p className="text-[15px] text-muted">{text}</p>
         <p className="text-[15px]">
-          For now, write your program in Build, press Check to find mistakes, and Upload to send it
-          to your board.
+          For now, write your program in Build, press Compile to find mistakes, and Upload to send
+          it to your board.
         </p>
         <button className="btn btn-primary self-start" onClick={onBuild}>
           Open Build

@@ -162,7 +162,7 @@ export function LandingPage() {
             </div>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-10">
               <Safeguard icon={<ShieldCheck size={22} />} title="Checked">
-                Upload stays locked until the check finds zero errors.
+                Upload stays locked until compiling finds zero errors.
               </Safeguard>
               <Safeguard icon={<TestTube size={22} />} title="Tested on hardware" soon>
                 A hardware-in-the-loop run must pass before a rollout starts.

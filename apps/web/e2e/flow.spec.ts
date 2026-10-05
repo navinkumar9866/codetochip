@@ -82,7 +82,7 @@ test('shows compile errors inline and in plain words', async ({ page }) => {
     durationMs: 800,
   });
   await page.goto(`/ide?example=builtin-blink&${MOCK}`);
-  await page.getByRole('button', { name: 'Check', exact: true }).click();
+  await page.getByRole('button', { name: 'Compile', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText(
     "Fix the error in blink.ino line 4: 'pinMod' was not declared in this scope",
   );
@@ -125,7 +125,7 @@ test('works at 380 px wide without sideways scrolling', async ({ page }) => {
 test.describe('phone layout', () => {
   test.use({ viewport: { width: 380, height: 780 }, hasTouch: true, isMobile: true });
 
-  test('one view at a time, with Check and Upload in the bottom bar', async ({ page }) => {
+  test('one view at a time, with Compile and Upload in the bottom bar', async ({ page }) => {
     await fakeCompiler(page, ok);
     await page.goto(`/ide?example=builtin-hello-serial&${MOCK}`);
     const bar = page.getByRole('navigation', { name: 'Editor' });
@@ -279,7 +279,7 @@ test('telemetry: an upload records anonymous compile and flash events; opting ou
   await page.getByRole('link', { name: 'Help' }).click();
   await page.getByLabel('Share anonymous usage statistics').uncheck();
   await page.goBack();
-  await page.getByRole('button', { name: 'Check', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Compile', exact: true }).first().click();
   await page.waitForTimeout(500);
   expect(await events()).toHaveLength(2);
 });

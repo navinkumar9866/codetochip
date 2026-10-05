@@ -7,20 +7,23 @@ Cost, checked 2026-10-03: an e2-standard-2 in `asia-south1` is about $59 a month
 ## 1. Create the VM (once)
 
 ```sh
-gcloud config set project codetochip
+# A Cloud project of its own, not the Firebase one, so the VM can't reach users' data.
+gcloud config set project codetochip-510518
 gcloud services enable compute.googleapis.com
 gcloud compute addresses create compile --region asia-south1
 gcloud compute instances create compile-1 \
   --zone asia-south1-a --machine-type e2-standard-2 \
   --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud \
   --boot-disk-size 30GB --boot-disk-type pd-balanced \
-  --address compile --tags compile-server
-gcloud compute firewall-rules create allow-compile-https \
+  --address compile --tags compile-server \
+  --no-service-account --no-scopes \
+  --shielded-secure-boot --shielded-vtpm --shielded-integrity-monitoring
+gcloud compute firewall-rules create allow-compile-https --network default \
   --allow tcp:80,tcp:443 --target-tags compile-server
 gcloud compute addresses describe compile --region asia-south1 --format 'value(address)'
 ```
 
-The last command prints the static IP. Either point a domain's DNS A record at it, or use `<ip-with-dashes>.sslip.io` (for example `34-100-1-2.sslip.io`) as the hostname.
+The last command prints the static IP. Point the `compile.codetochip.in` A record at it (currently 8.234.73.40), or use `<ip-with-dashes>.sslip.io` (for example `34-100-1-2.sslip.io`) as the hostname.
 
 ## 2. Install and start (on the VM)
 

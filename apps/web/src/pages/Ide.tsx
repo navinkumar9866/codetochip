@@ -78,7 +78,7 @@ export function IdePage() {
   const [save, setSave] = useState<SaveState>('idle');
   const [busy, setBusy] = useState<Busy>(null);
   const [outcome, setOutcome] = useState<CompileOutcome | null>(null);
-  // What the last Check was built from, to tell when its problems are out of date.
+  // What the last Compile was built from, to tell when its problems are out of date.
   const [checkedKey, setCheckedKey] = useState('');
   const [mode, setMode] = useState<IdeMode>('build');
   const [explorerOpen, setExplorerOpen] = useState(true);
@@ -380,7 +380,7 @@ export function IdePage() {
   const errorFiles = new Set(
     stale ? [] : problems.filter((d) => d.severity === 'error').map((d) => d.file),
   );
-  // Guests can't compile on the hosted server, so Check, Upload and .bin wait for sign-in.
+  // Guests can't compile on the hosted server, so Compile, Upload and .bin wait for sign-in.
   const mustSignIn = compileNeedsSignIn && user !== undefined && (!user || user.isAnonymous);
   const uploadLocked = !!busy || !device || errors > 0 || mustSignIn;
   const check = () => {
@@ -558,9 +558,9 @@ export function IdePage() {
               )}
               <span className="font-semibold">
                 {!outcome
-                  ? 'Not checked yet'
+                  ? 'Not compiled yet'
                   : stale
-                    ? 'Changed since the last check'
+                    ? 'Changed since the last compile'
                     : errors
                       ? `${errors} error${errors > 1 ? 's' : ''} block upload`
                       : 'No errors'}
@@ -573,22 +573,22 @@ export function IdePage() {
                   {mustSignIn ? (
                     <span className="flex items-center gap-1.5">
                       <button className="btn btn-primary" onClick={openSignIn}>
-                        Sign in to check
+                        Sign in to compile
                         <LogIn size={16} />
                       </button>
                       <Info
                         title="Why sign in?"
-                        text="Checking and uploading run on our servers, so they need a free account. Sign in with Google or your email; your work comes with you."
+                        text="Compiling and uploading run on our servers, so they need a free account. Sign in with Google or your email; your work comes with you."
                       />
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5">
                       <button className="btn btn-primary" disabled={!!busy} onClick={check}>
-                        {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Check'}
+                        {busy?.kind === 'compile' ? compileLabel(busy.progress) : 'Compile'}
                         <ListChecks size={16} />
                       </button>
                       <Info
-                        title="Check"
+                        title="Compile"
                         text="Compiles your program on our server to find mistakes. Nothing is sent to the board."
                       />
                     </span>
@@ -611,7 +611,7 @@ export function IdePage() {
                       <Info
                         align="right"
                         title="Upload"
-                        text="Turns your program into machine code and writes it to the board, which then runs it straight away. Locked while the last check found errors."
+                        text="Turns your program into machine code and writes it to the board, which then runs it straight away. Locked while the last compile found errors."
                       />
                     </span>
                   )}
@@ -881,7 +881,7 @@ export function IdePage() {
                     disabled={!!busy}
                     onClick={check}
                   >
-                    {busy?.kind === 'compile' ? '…' : 'Check'}
+                    {busy?.kind === 'compile' ? '…' : 'Compile'}
                   </button>
                 )}
                 {busy?.kind === 'upload' ? (
@@ -922,9 +922,9 @@ const compileLabel = (p: CompileProgress) =>
     ? p.position > 0
       ? `Queued (${p.position} ahead)…`
       : 'Starting…'
-    : 'Checking…';
+    : 'Compiling…';
 
-/** The banner under the toolbar while checking or uploading: what's happening, how far along. */
+/** The banner under the toolbar while compiling or uploading: what's happening, how far along. */
 function stageOf(busy: NonNullable<Busy>, flash: FlashProgress | null, boardName: string) {
   if (busy.kind === 'compile') {
     const p = busy.progress;

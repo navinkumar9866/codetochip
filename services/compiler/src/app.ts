@@ -20,7 +20,7 @@ export interface AppOptions extends FastifyServerOptions {
   maxQueued?: number;
 }
 
-const SIGN_IN = 'Sign in to check and upload your code. It’s free: use Google or your email.';
+const SIGN_IN = 'Sign in to compile and upload your code. It’s free: use Google or your email.';
 
 /** Builds the app without listening, so tests can use `app.inject()`. */
 export function buildApp(service: CompileService, opts: AppOptions = {}) {

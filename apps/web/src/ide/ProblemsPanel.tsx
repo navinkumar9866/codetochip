@@ -4,7 +4,7 @@ import type { CompileOutcome, Diagnostic } from '../compile/client.ts';
 import { explain } from './explain.ts';
 
 /**
- * Every mistake from the last Check, one row each. The selected row opens into
+ * Every mistake from the last Compile, one row each. The selected row opens into
  * 01 What happened · 02 Why it's wrong · 03 How to fix. Errors block upload; warnings don't.
  */
 export function ProblemsPanel({
@@ -17,7 +17,7 @@ export function ProblemsPanel({
   /** The code changed since this outcome was produced. */
   stale: boolean;
   onJump: (d: Diagnostic) => void;
-  /** Guests must sign in before they can check. */
+  /** Guests must sign in before they can compile. */
   mustSignIn?: boolean;
 }) {
   const [picked, setPicked] = useState(0);
@@ -27,11 +27,11 @@ export function ProblemsPanel({
     return (
       <Empty
         icon={<CircleDashed size={16} className="text-muted" />}
-        title="Not checked yet"
+        title="Not compiled yet"
         text={
           mustSignIn
-            ? 'Sign in (it’s free), then press Check to look for mistakes.'
-            : 'Press Check to look for mistakes. Nothing is sent to the board.'
+            ? 'Sign in (it’s free), then press Compile to look for mistakes.'
+            : 'Press Compile to look for mistakes. Nothing is sent to the board.'
         }
       />
     );
@@ -44,7 +44,7 @@ export function ProblemsPanel({
     <div className="flex flex-col">
       {stale && (
         <p className="border-b border-line bg-warn-soft px-5 py-2 text-sm">
-          You changed the code since this check. Press Check again to update the list.
+          You changed the code since this compile. Press Compile again to update the list.
         </p>
       )}
       <div className="flex flex-wrap items-stretch">

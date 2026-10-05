@@ -4,7 +4,7 @@ import { useServices } from '../services.tsx';
 
 const OPEN_SIGN_IN = 'c2c-open-sign-in';
 
-/** Opens the sign-in box in the top bar, e.g. from a "Sign in to check" button. */
+/** Opens the sign-in box in the top bar, e.g. from a "Sign in to compile" button. */
 export function openSignIn() {
   window.dispatchEvent(new Event(OPEN_SIGN_IN));
 }
